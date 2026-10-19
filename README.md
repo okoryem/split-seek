@@ -114,3 +114,7 @@ The tests cover folder scanning, timestamps, ranking and stretches, the frame ca
 - Every search scores every frame. That's about 2 seconds for 637 frames; a whole 500 GB library would need an index.
 - Timestamps are accurate to about 2 seconds.
 - No audio or speech search.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
