@@ -29,7 +29,7 @@ Build mode: learn
   Learner check: Point `search_cli` at a real trip folder, run three or four searches you'd actually make while editing, and say whether the top results are the right moments and whether the speed feels usable. Also say whether boosted or raw looks better from the comparison.
   Commit: `Add folder scan, frame prep, and ranked Jev search`
 
-- [ ] **3. Choose or drag in a folder, watch it prepare, and have it remembered**
+- [x] **3. Choose or drag in a folder, watch it prepare, and have it remembered**
   Becomes usable: The SplitSeek window in its dark Resolve-style look. "Choose folder" or dragging a folder in starts preparation with "Pulling frames from your clips… 12 / 48" progress, then the search box unlocks. Clips prepared before load from SplitSeek's frame cache without ffmpeg, so reopening a folder is fast. A folder with no videos shows "There are no videos in this folder." and stays on the picker. "Forget prepared frames" clears the cache.
   Why now: The engine is proven, so this connects it to the first half of the core journey. The look gets set here, while there's still room to change it.
   PRD ref: `prd.md > The Core Journey` (steps 1–3), `prd.md > Choosing a Folder`, `prd.md > Preparing Clips`, `prd.md > Look and Feel`, `prd.md > States and Boundaries`
@@ -94,3 +94,5 @@ Activity mode:
 - Results are one row per stretch (back-to-back matching frames of a clip), not one per 2-second moment — at the early checkpoint the learner chose this after a 30-second match took 15 rows. PRD and spec updated; grouping lives in `search.rs`.
 - Prepared frames are remembered per clip in `~/Library/Caches/com.splitseek.app/frames/` instead of a temp folder deleted on close — at the early checkpoint the learner asked for memory (all clips live on one slow Passport drive; first prep of `flip/` took ~20 min). This reverses the PRD's "no memory between sessions"; scope, PRD, spec, and slice 3 updated. Added to slice 3.
 - The boost stays as is — raw vs. boosted showed no clear difference on `flip/`, and the learner didn't ask to change it.
+- `prepare_folder` returns its summary directly instead of sending a separate `prepare-done` event, and the template's unused opener plugin was swapped for the dialog plugin — simpler, with the same behavior.
+- The window's states were verified in a browser with a stand-in engine (Tauri windows can't be driven from the terminal); the real drag-and-drop was the learner's check. Their run cached 57 Canon clips in 22 MB, well under the 50–100 MB estimate.

@@ -3,6 +3,7 @@
 //! With no phrases, it asks for them one at a time after preparing.
 //!   --raw      Jev looks at the flat LOG frames instead of the boosted ones
 //!   --compare  run every phrase both ways, side by side
+//!   --forget   clear remembered frames first, so every clip is prepared fresh
 
 use splitseek_lib::frames::{self, Progress};
 use splitseek_lib::jev::Jev;
@@ -20,6 +21,7 @@ async fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let raw = args.iter().any(|a| a == "--raw");
     let compare = args.iter().any(|a| a == "--compare");
+    let forget = args.iter().any(|a| a == "--forget");
     let mut positional = args.iter().filter(|a| !a.starts_with("--"));
     let Some(folder) = positional.next().map(PathBuf::from) else {
         eprintln!("usage: search_cli <folder> [\"<phrase>\" ...] [--raw | --compare]");
@@ -34,7 +36,11 @@ async fn main() {
 
     println!("Pulling frames from your clips in {} …", folder.display());
     let start = Instant::now();
-    let prepared = frames::prepare(&folder, |p: Progress| {
+    let cache_root = frames::default_cache_root();
+    if forget {
+        frames::forget_all(&cache_root).expect("couldn't clear the frame cache");
+    }
+    let prepared = frames::prepare(&folder, &cache_root, |p: Progress| {
         print!("\r  {} / {}  {:<50}", p.done, p.total, p.clip);
         let _ = std::io::stdout().flush();
     })
@@ -43,14 +49,14 @@ async fn main() {
         eprintln!("{e}");
         std::process::exit(1);
     });
-    let temp_path = prepared.temp_dir.path().to_path_buf();
     println!(
-        "\rPrepared {} clips → {} frames in {:.1} s ({} skipped). Temp: {}",
+        "\rPrepared {} clips ({} remembered) → {} frames in {:.1} s ({} skipped). Cache: {}",
         prepared.clip_count,
+        prepared.cached_count,
         prepared.frames.len(),
         start.elapsed().as_secs_f32(),
         prepared.skipped.len(),
-        temp_path.display()
+        cache_root.display()
     );
     for s in &prepared.skipped {
         println!("  skipped (ffmpeg couldn't read it): {}", s.display());
@@ -87,12 +93,6 @@ async fn main() {
             run(phrase).await;
         }
     }
-
-    drop(prepared);
-    println!(
-        "\nTemp frames {}.",
-        if temp_path.exists() { "were NOT deleted" } else { "deleted" }
-    );
 }
 
 fn report(phrase: &str, result: Result<SearchResult, splitseek_lib::jev::JevError>) {

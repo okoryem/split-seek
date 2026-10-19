@@ -8,6 +8,46 @@
     <script type="module" src="/main.js" defer></script>
   </head>
   <body>
-    <main id="app"></main>
+    <header class="bar">
+      <span class="brand">SplitSeek</span>
+      <span id="folder-name" class="folder-name"></span>
+      <button id="change-folder" class="link" hidden>Choose another folder</button>
+    </header>
+
+    <!-- State 1: folder picker -->
+    <main id="picker" class="state">
+      <div id="drop-zone" class="drop-zone">
+        <p class="drop-title">Drop a folder of clips here</p>
+        <p class="muted">or</p>
+        <button id="choose-folder" class="button">Choose folder</button>
+        <p id="picker-error" class="error" hidden></p>
+      </div>
+    </main>
+
+    <!-- State 2: preparing -->
+    <main id="preparing" class="state" hidden>
+      <div class="preparing">
+        <p class="preparing-title">Pulling frames from your clips…</p>
+        <div class="progress"><div id="progress-fill" class="progress-fill"></div></div>
+        <p class="progress-line">
+          <span id="progress-count">0 / 0</span>
+          <span id="progress-clip" class="muted"></span>
+        </p>
+      </div>
+    </main>
+
+    <!-- State 3: search -->
+    <main id="search" class="state" hidden>
+      <form id="search-form" class="search-form">
+        <input id="search-input" class="search-input" type="search" autocomplete="off"
+               placeholder="Describe a moment, e.g. street market at night" />
+      </form>
+      <p id="prepared-line" class="muted status-line"></p>
+      <section id="results" class="results"></section>
+    </main>
+
+    <footer class="footer">
+      <button id="forget" class="link muted">Forget prepared frames</button>
+    </footer>
   </body>
 </html>
