@@ -8,3 +8,9 @@ node_modules/
 /src-tauri/target/
 /src-tauri/gen/schemas
 .DS_Store
+
+# Hackathon guide skills (not project code)
+/.agents/
+/.claude/
+/agent/
+/skills-lock.json
