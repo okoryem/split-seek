@@ -56,6 +56,8 @@ Versions were checked on this machine on 2026-10-19. Exact Tauri crate and plugi
 - **Start:** `npm install`, then `npm run tauri dev`. The SplitSeek window opens.
 - **Demo recording:** open SplitSeek beside Resolve, drag in one trip folder (about 20–50 clips with lookalikes), wait for preparation, then run three or four different searches and click one result to show Finder. Record with macOS screen recording (Cmd+Shift+5).
 - **Submission:** a short demo video plus the public GitHub repository. `6-ship` handles both.
+- **Public repository:** https://github.com/okoryem/split-seek (MIT license: https://github.com/okoryem/split-seek/blob/main/LICENSE)
+- **Demo video:** not recorded yet.
 
 ## Look and Feel
 From `prd.md > Look and Feel`:
