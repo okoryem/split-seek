@@ -66,6 +66,8 @@ Build mode: learn
 
 ## Final Review
 
+- [x] Starting a new search stops and clears the preview — the clip kept playing and stuttered during the next search. Fixed in `main.js` (also cleared the remembered clip so re-clicking reloads it); verified in the browser; learner retried and confirmed.
+- [x] Cutoff: learner asked about lowering to 50% after "speeding buggy" seemed to miss one. Checked: all three buggy clips appear above 60% (93–95%, and `C768` at 88%); only partial passes inside `C768` score 47–56%, and 50% would readmit known false hits (snowboarder 56%, Machu Picchu look-alikes 50–54%). Learner chose to keep 60%; no change.
 - [ ] Final review complete — feedback resolved and learner confirms ready to ship
 
 ## Code Tour and App Map

@@ -77,6 +77,7 @@ function el(tag, className, text) {
 function clearPreview() {
   const player = $("player");
   player.pause();
+  delete player.dataset.clip;
   player.removeAttribute("src");
   player.load();
   player.hidden = true;
@@ -220,6 +221,8 @@ async function runSearch(phrase) {
   if (!phrase) return;
   const id = ++searchId;
   closeMenu();
+  // A new search stops the preview, so playback doesn't stutter alongside the search.
+  clearPreview();
   $("results-status").textContent = `Searching for “${phrase}”…`;
   $("results").classList.add("dim");
   $("search-button").disabled = true;
