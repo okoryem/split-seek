@@ -2,3 +2,9 @@
 .env
 .env.*
 !.env.example
+
+# Build output and dependencies
+node_modules/
+/src-tauri/target/
+/src-tauri/gen/schemas
+.DS_Store

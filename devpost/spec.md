@@ -161,26 +161,31 @@ buildWithAi/                     # project root (repo)
 ### Jev (TypeSafe)
 - **Endpoint:** `POST https://api.typesafe.ai/v1/systemone`
 - **Headers:** `Authorization: Bearer $JEV_API_KEY`, `Content-Type: application/json`, `TypeSafe-Danger-Zone-Images: true`
-- **Request (question shape verified; image encoding NOT verified):**
+- **Request (verified in build step 1):** the image goes in a top-level `assets` map as base64 JPEG, and `state` refers to it by name.
   ```json
   {
     "model": "jev-latest",
-    "state": "<the boosted frame — exact image format TBD in build step 1>",
+    "state": { "frame": "splitseek-frame" },
+    "assets": {
+      "splitseek-frame": { "type": "image", "format": "jpg", "data_base64": "<base64, no data: prefix>" }
+    },
     "questions": {
       "match": {
         "type": "noul",
-        "instructions": "Does this video frame show: street market at night?",
-        "yes": "The frame clearly shows this",
-        "no": "The frame does not show this"
+        "instructions": "Does the video frame `frame` show: street market at night?",
+        "criteria": {
+          "true": "The frame clearly shows this",
+          "false": "The frame does not show this"
+        }
       }
     }
   }
   ```
-- **Response:** `{ "answers": { "match": { "type": "noul", "noul": 0.87 } }, "usage": {...} }`. `noul` runs from 0 (no) to 1 (yes) and is used as the confidence score.
-- **Limits and cost:** request body up to 32 MiB. Rate limits aren't published (a 429 means back off). Reported input pricing is about $42 per billion tokens, and output is free. Image token cost isn't known.
-- **Status:** image input and Jev 1.14 are "danger zone" (experimental). Jev is early access.
-- **Docs:** https://docs.typesafe.ai/api, https://docs.litellm.ai/docs/pass_through/typesafe.md
-- **To verify in build step 1:** how an image is passed in `state`, the exact names of the yes/no description fields, and the per-image token cost and latency.
+- **Response:** `{ "model": "jev-1.13.0", "answers": { "match": { "type": "noul", "noul": 0.87 } }, "usage": { "input_tokens": 740, ... } }`. `noul` runs from 0 (no) to 1 (yes) and is used as the confidence score.
+- **Image limits:** PNG or JPEG; each side 280–1568 px; 78,400–2,458,624 total pixels; 16 MiB per image. Out-of-range images are rejected, not resized, so frames must stay inside these bounds.
+- **Measured (build step 1, one 512×288 frame):** about 740 input tokens and 100–360 ms per question. `jev-latest` currently answers as `jev-1.13.0`. At about $42 per billion input tokens, that's roughly $0.00003 per frame. Rate limits aren't published (a 429 means back off). Request body up to 32 MiB.
+- **Status:** image input is "danger zone" (experimental). Jev is early access.
+- **Docs:** https://docs.typesafe.ai/api, https://docs.typesafe.ai/images.md
 
 ### ffmpeg
 A local program, with no key or cost. Filters reference: https://ffmpeg.org/ffmpeg-filters.html
@@ -213,8 +218,8 @@ A local program, with no key or cost. Filters reference: https://ffmpeg.org/ffmp
 - **Does the LOG boost actually help Jev?** Agreed small investigation: in an early build step, score the same 3–4 phrases against raw LOG frames and boosted frames from a few clips, and compare. Keep the boost (and tune it) only if it improves the right matches.
 
 ### Open issues
-- **Jev image input format.** Unverified, and it blocks everything after build step 1. Resolved by `examples/jev_probe.rs`.
-- **Jev per-image cost and speed.** Measured in step 1 and in the search timing log.
+- **Jev image input format.** Resolved in build step 1 (see External Services).
+- **Jev per-image cost and speed.** Single frames measured in step 1; whole-folder speed is measured by the search timing log.
 - **Exact LOG profiles.** Expected to be Canon Log 3 (R50 V) and D-Log M (DJI). Confirm with ffprobe on real files. Only relevant if LUTs come later.
 - **Cutoff value.** Starts at 0.30, tuned on real footage.
 - **Whether Rust speed work matters.** Decided by the timing log, not assumed.

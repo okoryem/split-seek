@@ -5,11 +5,11 @@ status: approved
 
 # Build Checklist
 
-Build mode: [not chosen yet]
+Build mode: learn
 
 ## Slices
 
-- [ ] **1. Jev scores one of your real frames**
+- [x] **1. Jev scores one of your real frames**
   Becomes usable: A command you run in the terminal (`cargo run --example jev_probe -- <image> "<phrase>"`) that sends one frame from your footage to Jev and prints its 0–1 score and how long it took. The Tauri project exists and its window opens, though it's empty.
   Why now: Jev's image input is the one unverified assumption everything else depends on (`spec.md > Decisions and Open Issues`). If it fails, we fall back now, before any UI exists. Rust setup and the Tauri scaffold happen here because the probe needs them.
   PRD ref: `prd.md > Searching`, `prd.md > Open Questions`
@@ -81,3 +81,7 @@ Reflection:
 Activity mode: 
 
 ## Revisions
+
+- Jev images go in a top-level `assets` map referenced from `state`, and the yes/no descriptions are `criteria.true`/`criteria.false` — Jev's images docs showed the spec's `state`-only image and `yes`/`no` fields were wrong. Spec updated; verified on a Peru clip.
+- Frames must stay 280–1568 px per side — Jev rejects, rather than resizes, out-of-range images. Slice 2 must keep frames inside these limits, including for unusually wide or tall footage.
+- First probe on one Peru frame: boosted 84% vs. raw 68% on "young people at a mountain lake", both under 5% on wrong phrases. That's an early sign the boost helps; slice 2's comparison decides it.
