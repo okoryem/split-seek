@@ -3349,6 +3349,7 @@ dependencies = [
  "base64 0.23.1",
  "dotenvy",
  "futures",
+ "percent-encoding",
  "reqwest",
  "serde",
  "serde_json",

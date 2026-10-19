@@ -39,15 +39,15 @@ Build mode: learn
   Learner check: Open SplitSeek beside Resolve and drag in the folder of clips you copied to your Mac for the demo. Watch the progress, then quit, reopen, and drag it in again: the second time should be almost instant. Try an empty folder too. Say whether it looks and feels like it belongs next to Resolve.
   Commit: `Add folder picker, drag-drop, and preparation progress`
 
-- [ ] **4. Search in the window, see ranked moments, and jump to the clip**
-  Becomes usable: The full core journey. Type a phrase, get ranked rows, one per stretch (LOG thumbnail of the best frame, file name, time range and best moment, confidence with an orange bar), use "Show more (N)" for near-misses, see the "came close" and "Nothing found" states, and click a row to reveal the clip in Finder. Searching again needs no re-preparation.
+- [x] **4. Search in the window, see ranked moments, preview them, and jump to the clip**
+  Becomes usable: The full core journey. Type a phrase, get ranked rows, one per stretch (LOG thumbnail of the best frame, file name, time range and best moment, confidence with an orange bar), use "Show more (N)" for near-misses, see the "came close" and "Nothing found" states, click a row to watch the original clip from its matched moment in a preview panel beside the list, and use the row's "⋯" menu to show the clip in Finder. Searching again needs no re-preparation.
   Why now: This completes the journey on top of a working engine and window, so it's mostly wiring and presentation. This is also where we check that previews don't slow the search.
-  PRD ref: `prd.md > The Core Journey` (steps 4–7), `prd.md > Ranked Results`, `prd.md > Reveal in Finder`, `prd.md > States and Boundaries`
-  Spec ref: `spec.md > Components` (Search and Ranking, Results View, Reveal in Finder), `spec.md > Important Failure Modes` (missing key)
-  Build: `search` and `reveal_in_finder` commands, base64 LOG previews on moments, the results rendering and Show more in `main.js`/`styles.css`, the empty and below-cutoff states, the "Jev API key missing — add it to .env" message, and "Choose another folder". Tune `CUTOFF` on real footage.
+  PRD ref: `prd.md > The Core Journey` (steps 4–7), `prd.md > Ranked Results`, `prd.md > Video Preview`, `prd.md > Reveal in Finder`, `prd.md > States and Boundaries`
+  Spec ref: `spec.md > Components` (Search and Ranking, Results View, Video Preview, Reveal in Finder), `spec.md > Look and Feel`, `spec.md > Important Failure Modes` (missing key)
+  Build: `search` and `reveal_in_finder` commands, base64 LOG previews on moments, the results rendering and Show more in `main.js`/`styles.css`, the empty and below-cutoff states, the "Jev API key missing — add it to .env" message, and "Choose another folder", a Search button, the two-pane layout with a `<video>` preview served by a `clip://` channel limited to the prepared folder's clips, and the "⋯" menu. Tune `CUTOFF` on real footage.
   Verify (mechanical): `cargo test`/`cargo build` pass. Run `npm run tauri dev` with no errors. Run searches on a real folder and compare against `search_cli` for the same phrase (same ranking). Compare the timing log with and without previews. Temporarily unset the key and confirm the message. Confirm `open -R` selects the file.
   Learner check: Run three or four real searches in the window, open "Show more" once, try a nonsense phrase, and click a result to land on the clip in Finder, then drag it into Resolve.
-  Commit: `Add search results, Show more, and reveal in Finder`
+  Commit: `Add search results, video preview, and reveal in Finder`
 
 - [ ] **5. Ready for someone else to run**
   Becomes usable: A README that lets someone clone, add a key, and run SplitSeek, with every failure mode handled gracefully.
@@ -96,3 +96,9 @@ Activity mode:
 - The boost stays as is — raw vs. boosted showed no clear difference on `flip/`, and the learner didn't ask to change it.
 - `prepare_folder` returns its summary directly instead of sending a separate `prepare-done` event, and the template's unused opener plugin was swapped for the dialog plugin — simpler, with the same behavior.
 - The window's states were verified in a browser with a stand-in engine (Tauri windows can't be driven from the terminal); the real drag-and-drop was the learner's check. Their run cached 57 Canon clips in 22 MB, well under the 50–100 MB estimate.
+- Cutoff raised from 30% to 60% — on the demo folder, correct top hits for seven real phrases scored 85–100% while wrong phrases peaked at 56% ("a snowboarder") and 48% ("an airplane cockpit").
+- 64 Jev requests at once instead of 16 — searches on 637 frames dropped from ~5–7 s to ~2 s with no failures; 128 caused a failed frame and was slower, so 64 it is.
+- "Show more" sends the best 30 near-miss stretches rather than all of them — a broad search can have 1,000+ stretches below the cutoff, and each carries a preview image.
+- Renamed the confidence bar's CSS class from `.bar` to `.score-bar` — it shared a name with the top bar, which squashed the window header to 3 px. The learner caught it in the real window after the agent had dismissed the same 5 px offset in browser screenshots as a rendering artifact.
+- Added a Search button (learner request: there was no visible cue to press Return) and video preview with a two-pane layout and a "⋯ → Show in Finder" menu (learner request during slice 4, moving playback out of "Deferred From the POC"). An AVFoundation check showed all three cameras' HEVC `hvc1` clips are playable on the Mac. PRD, spec, and slice 4 updated; default window widened to fit two sides.
+- Video is served by SplitSeek's own `clip://` channel instead of Tauri's asset protocol — in the real window the preview was black with audio. Temporary diagnostics showed the clip labelled `text/html`: Tauri matches only a lowercase `mp4` extension, and its byte sniffing doesn't recognise Canon/DJI MP4s. The new channel labels by extension regardless of case, serves ranges, and allows only the prepared folder's clips (stricter than the folder-wide asset scope). Confirmed in the learner's window: playback started at the best moments (2.00 s, 64.00 s) in real time.

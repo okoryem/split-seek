@@ -1,19 +1,29 @@
+pub mod clip_protocol;
 pub mod frames;
 pub mod jev;
 pub mod scan;
 pub mod search;
 
+use base64::Engine as _;
 use serde::Serialize;
 use std::path::PathBuf;
-use tauri::{AppHandle, Emitter, State};
+use std::sync::Arc;
+use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::Mutex;
 
 use frames::{Prepared, Progress};
+use jev::Jev;
+use search::{Moment, Source};
 
-/// What the engine keeps while the app is open: the folder currently prepared.
+/// Most near-miss rows sent to the window for "Show more".
+const MAX_BELOW_ROWS: usize = 30;
+
+/// What the engine keeps while the app is open: the folder currently prepared, and
+/// the Jev client (created on first search, so a key added to .env later still works).
 #[derive(Default)]
 struct AppState {
     prepared: Mutex<Option<Prepared>>,
+    jev: Mutex<Option<Arc<Jev>>>,
 }
 
 #[derive(Clone, Serialize)]
@@ -88,6 +98,109 @@ async fn prepare_folder(
     Ok(summary)
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Row {
+    clip_path: String,
+    clip_name: String,
+    start_sec: u32,
+    end_sec: u32,
+    best_sec: u32,
+    score: f32,
+    /// The best frame's original LOG preview, as a data URL.
+    preview: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SearchResponse {
+    above: Vec<Row>,
+    /// The best near-misses, at most MAX_BELOW_ROWS.
+    below: Vec<Row>,
+    below_total: usize,
+    cutoff: f32,
+    frames_scored: usize,
+    frames_failed: usize,
+    elapsed_ms: u64,
+}
+
+fn to_row(m: Moment) -> Row {
+    let preview = std::fs::read(&m.log_jpg)
+        .map(|bytes| {
+            format!("data:image/jpeg;base64,{}", base64::engine::general_purpose::STANDARD.encode(bytes))
+        })
+        .unwrap_or_default();
+    Row {
+        clip_path: m.clip_path.display().to_string(),
+        clip_name: m.clip_name,
+        start_sec: m.start_sec,
+        end_sec: m.end_sec,
+        best_sec: m.best_sec,
+        score: m.score,
+        preview,
+    }
+}
+
+/// Asks Jev about every prepared frame and returns ranked stretches with LOG previews.
+#[tauri::command]
+async fn search(state: State<'_, AppState>, phrase: String) -> Result<SearchResponse, String> {
+    let phrase = phrase.trim().to_string();
+    if phrase.is_empty() {
+        return Err("Type what you're looking for.".into());
+    }
+    let jev = {
+        let mut slot = state.jev.lock().await;
+        if slot.is_none() {
+            *slot = Some(Arc::new(Jev::from_env().map_err(|e| e.to_string())?));
+        }
+        slot.clone().unwrap()
+    };
+    let prepared = state.prepared.lock().await;
+    let prepared = prepared.as_ref().ok_or("Choose a folder first.")?;
+
+    let result = search::search(&jev, &prepared.frames, &phrase, Source::Boosted)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let below_total = result.below.len();
+    let started = std::time::Instant::now();
+    let response = SearchResponse {
+        above: result.above.into_iter().map(to_row).collect(),
+        below: result.below.into_iter().take(MAX_BELOW_ROWS).map(to_row).collect(),
+        below_total,
+        cutoff: search::CUTOFF,
+        frames_scored: result.frames_scored,
+        frames_failed: result.frames_failed,
+        elapsed_ms: result.elapsed_ms as u64,
+    };
+    eprintln!("[search]   previews attached in {} ms", started.elapsed().as_millis());
+    Ok(response)
+}
+
+/// Opens Finder with the clip selected. Only clips in the prepared folder are allowed.
+#[tauri::command]
+async fn reveal_in_finder(state: State<'_, AppState>, path: String) -> Result<(), String> {
+    let clip = PathBuf::from(&path);
+    let known = state
+        .prepared
+        .lock()
+        .await
+        .as_ref()
+        .is_some_and(|p| p.frames.iter().any(|f| f.clip_path == clip));
+    if !known {
+        return Err("That clip isn't in the prepared folder.".into());
+    }
+    let status = std::process::Command::new("open")
+        .arg("-R")
+        .arg(&clip)
+        .status()
+        .map_err(|e| e.to_string())?;
+    if !status.success() {
+        return Err(format!("Finder couldn't show {}", clip.display()));
+    }
+    Ok(())
+}
+
 /// Deletes every remembered frame. The current folder must be prepared again afterwards.
 #[tauri::command]
 async fn forget_prepared_frames(state: State<'_, AppState>) -> Result<(), String> {
@@ -102,7 +215,37 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
-        .invoke_handler(tauri::generate_handler![prepare_folder, forget_prepared_frames])
+        // Video preview: serves clips of the prepared folder only, in pieces.
+        .register_asynchronous_uri_scheme_protocol("clip", |ctx, request, responder| {
+            let app = ctx.app_handle().clone();
+            let path = clip_protocol::path_from_uri_path(request.uri().path());
+            let range = request
+                .headers()
+                .get(tauri::http::header::RANGE)
+                .and_then(|v| v.to_str().ok())
+                .map(str::to_string);
+            tauri::async_runtime::spawn(async move {
+                let allowed = app
+                    .state::<AppState>()
+                    .prepared
+                    .lock()
+                    .await
+                    .as_ref()
+                    .is_some_and(|p| p.frames.iter().any(|f| f.clip_path == path));
+                let response = tauri::async_runtime::spawn_blocking(move || {
+                    clip_protocol::respond(&path, allowed, range.as_deref())
+                })
+                .await
+                .unwrap();
+                responder.respond(response);
+            });
+        })
+        .invoke_handler(tauri::generate_handler![
+            prepare_folder,
+            search,
+            reveal_in_finder,
+            forget_prepared_frames
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

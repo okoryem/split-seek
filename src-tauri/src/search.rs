@@ -10,9 +10,9 @@ use crate::frames::{Frame, SAMPLE_EVERY_SEC};
 use crate::jev::{Jev, JevError};
 
 /// Moments scoring at or above this are shown by default. Tuned on real footage.
-pub const CUTOFF: f32 = 0.30;
+pub const CUTOFF: f32 = 0.60;
 /// How many Jev questions run at once.
-const PARALLEL_REQUESTS: usize = 16;
+const PARALLEL_REQUESTS: usize = 64;
 
 /// One result row: a stretch of a clip where consecutive frames all sit on the same
 /// side of the cutoff. A single matching frame is a stretch of length one.
@@ -54,21 +54,26 @@ pub async fn search(
     source: Source,
 ) -> Result<SearchResult, JevError> {
     let start = Instant::now();
-    let results: Vec<(usize, Result<f32, JevError>)> = stream::iter(frames.iter().enumerate())
-        .map(|(i, frame)| async move {
+    // One job per frame, each owning its path, so the search can run on any thread.
+    let jobs: Vec<_> = frames
+        .iter()
+        .enumerate()
+        .map(|(i, frame)| {
             let path = match source {
-                Source::Boosted => &frame.boost_jpg,
-                Source::RawLog => &frame.log_jpg,
+                Source::Boosted => frame.boost_jpg.clone(),
+                Source::RawLog => frame.log_jpg.clone(),
             };
-            let score = match tokio::fs::read(path).await {
-                Ok(jpeg) => jev.score_jpeg_with_retry(&jpeg, phrase).await.map(|s| s.noul),
-                Err(e) => Err(JevError::Fatal(e.to_string())),
-            };
-            (i, score)
+            async move {
+                let score = match tokio::fs::read(&path).await {
+                    Ok(jpeg) => jev.score_jpeg_with_retry(&jpeg, phrase).await.map(|s| s.noul),
+                    Err(e) => Err(JevError::Fatal(e.to_string())),
+                };
+                (i, score)
+            }
         })
-        .buffer_unordered(PARALLEL_REQUESTS)
-        .collect()
-        .await;
+        .collect();
+    let results: Vec<(usize, Result<f32, JevError>)> =
+        stream::iter(jobs).buffer_unordered(PARALLEL_REQUESTS).collect().await;
 
     let mut scored = Vec::new();
     let mut failures = Vec::new();

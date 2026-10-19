@@ -41,9 +41,18 @@
       <form id="search-form" class="search-form">
         <input id="search-input" class="search-input" type="search" autocomplete="off"
                placeholder="Describe a moment, e.g. street market at night" />
+        <button id="search-button" class="button primary" type="submit">Search</button>
       </form>
       <p id="prepared-line" class="muted status-line"></p>
-      <section id="results" class="results"></section>
+      <p id="results-status" class="status-line results-status"></p>
+      <div class="split">
+        <section id="results" class="results"></section>
+        <aside id="preview" class="preview">
+          <p id="preview-empty" class="preview-empty muted">Click a result to preview it.</p>
+          <video id="player" class="player" controls muted playsinline hidden></video>
+          <p id="preview-caption" class="preview-caption"></p>
+        </aside>
+      </div>
     </main>
 
     <footer class="footer">

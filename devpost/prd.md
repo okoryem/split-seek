@@ -16,7 +16,7 @@ Named **SplitSeek**, a play on the video-editing term "split" (learner choice; "
 3. **Preparation.** The app tells the learner it's pulling frames from the clips and shows progress. Search is unavailable until preparation finishes.
 4. **Search.** Type a phrase ("dog running in a field", "street market at night") and submit.
 5. **Ranked results.** Each matching stretch of a clip appears as its own row, ranked highest confidence first. Only stretches at or above the cutoff appear by default.
-6. **Act on a result.** Click a row to reveal that clip in Finder, then bring it into Resolve.
+6. **Act on a result.** Click a row to watch that clip in the preview panel, starting at the matched moment. Use the row's "⋯" menu to show it in Finder, then bring it into Resolve.
 7. **Repeat.** Search again on the same folder with no re-preparation wait. This is where the speed shows.
 
 Success: in a one-minute demo, three or four different searches on a real folder each surface the right moment(s) quickly (`scope.md > What "Working" Looks Like`).
@@ -25,9 +25,9 @@ Success: in a one-minute demo, three or four different searches on a real folder
 One window, with three states that share it:
 - **Folder picker:** a choose-folder button and a drag-and-drop zone.
 - **Preparing:** a message such as "Pulling frames from your clips…" with progress.
-- **Search:** a search box at the top and a ranked results list below. A "Show more" control appears below the list when moments fell under the cutoff. There's also a way to choose a different folder.
+- **Search:** a search box with a Search button at the top. Below it, two sides: the ranked results list on the left, and a video preview on the right that plays the clicked result from its matched moment. A "Show more" control appears below the list when moments fell under the cutoff. There's also a way to choose a different folder.
 
-The window should work comfortably beside Resolve, not full screen.
+The window should work comfortably beside Resolve, not full screen. When it's too narrow for two sides, the preview sits above the list.
 
 ## Look and Feel
 - Dark interface modeled on **DaVinci Resolve's** look. The learner uses Resolve and wants this to feel like part of the same setup. They also noted that iMovie and Premiere are dark.
@@ -64,9 +64,15 @@ The window should work comfortably beside Resolve, not full screen.
   - [ ] A "Show more" control reveals the below-cutoff moments, still ranked, beneath the main results.
   - [ ] The preview frame must not noticeably slow the search. If it does, it's the first thing to drop.
 
+### Video Preview
+- As the learner, I want to watch a result before reaching for it, so I can confirm it's the shot I want.
+  - [ ] Clicking a row plays the original clip (LOG, as in Resolve's media pool) in the preview panel, starting at the row's best moment.
+  - [ ] The clicked row is highlighted, and clicking another row switches the preview.
+  - [ ] Before any row is clicked, the preview panel says to click a result.
+
 ### Reveal in Finder
-- As the learner, I want to click a result and land on the file so I can bring it into Resolve.
-  - [ ] Clicking a row opens Finder with that clip's file selected.
+- As the learner, I want to land on the file so I can bring it into Resolve.
+  - [ ] Each row has a "⋯" menu with "Show in Finder", which opens Finder with that clip's file selected.
 
 ## States and Boundaries
 - **First open:** the folder picker with its drag-and-drop zone. There are no results yet.
@@ -83,18 +89,17 @@ The window should work comfortably beside Resolve, not full screen.
 - **Ranked by confidence with a cutoff, plus "Show more."** Showing every weak match would be too much, but near-misses should still be reachable.
 - **One row per stretch.** Changed at the first build checkpoint: one row per 2-second moment filled the list with the same clip (a 30-second match took 15 rows). A stretch row still points to the exact best moment, so it remains directly usable for finding a shot.
 - **Preview shows the LOG frame, not the converted one.** It matches what the learner sees in Resolve.
-- **Click reveals in Finder; no playback.** Simpler, and enough to get the clip into Resolve.
+- **Click plays a preview; Finder is in a "⋯" menu.** Changed during slice 4, reversing "no playback": the learner wants to confirm a shot by watching it. A check showed all three cameras' HEVC clips play natively on the Mac, and the drive (~40 MB/s) is fast enough for 90–130 Mbps footage. Layout: results on the left, video on the right, starting at the matched moment.
 - **Remember prepared clips between sessions.** Changed at the first build checkpoint, reversing "no memory between sessions": preparing a 43 GB folder from the learner's USB drive took about 20 minutes, limited by the drive itself. The learner keeps all their clips on one Passport drive and returns to the same footage, so remembering makes every visit after the first fast. The earlier concerns are covered: the frames are small (roughly 50–100 MB per large trip folder), and checking each clip's name, size, and modified time still picks up new clips.
 - **Dark, Resolve-inspired look.** It's the editor they use.
 - *Assumption:* the cutoff is a fixed value tuned during the build on real footage (around 20–40%, per the learner's initial thinking), not a user-facing setting.
 
 ## What We're Building
-- One dark window: choose or drag a folder → prepare with progress → search → ranked rows, one per stretch (file name, time range and best moment, confidence, LOG preview) → "Show more" for below-cutoff moments → click to reveal in Finder.
+- One dark window: choose or drag a folder → prepare with progress → search → ranked rows, one per stretch (file name, time range and best moment, confidence, LOG preview) → "Show more" for below-cutoff moments → click to preview the clip from its matched moment → "⋯" to show it in Finder.
 - The empty, no-videos, and nothing-above-cutoff states described above.
 - Matching powered by Jev AI on contrast-boosted or converted frame copies, remembered per clip in SplitSeek's cache, with the original files left untouched.
 
 ## Deferred From the POC
-- **Playback at the matched moment.** Playing high-bitrate LOG may be heavy, and reveal-in-Finder is enough for now.
 - **Adjustable cutoff setting.** Fixed and tuned during the build for now.
 
 ## Possible Later Enhancements
