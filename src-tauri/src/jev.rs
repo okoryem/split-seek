@@ -28,6 +28,8 @@ pub struct Score {
 #[derive(Debug)]
 pub enum JevError {
     MissingKey,
+    /// Jev refused the key (401/403).
+    BadKey,
     /// Worth retrying: rate limited (429) or a server error (5xx).
     Retryable(String),
     /// Not worth retrying: bad request, bad key, unreadable reply.
@@ -38,6 +40,7 @@ impl std::fmt::Display for JevError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             JevError::MissingKey => write!(f, "Jev API key missing — add it to .env"),
+            JevError::BadKey => write!(f, "Jev rejected the API key — check JEV_API_KEY in .env"),
             JevError::Retryable(m) | JevError::Fatal(m) => write!(f, "{m}"),
         }
     }
@@ -47,7 +50,9 @@ impl Jev {
     /// Reads JEV_API_KEY and JEV_MODEL from the project's `.env` (or the environment).
     pub fn from_env() -> Result<Self, JevError> {
         let project_env = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../.env");
-        let _ = dotenvy::from_path(project_env).or_else(|_| dotenvy::dotenv().map(|_| ()));
+        // Override, so a key fixed in .env is picked up without restarting the app.
+        let _ = dotenvy::from_path_override(project_env)
+            .or_else(|_| dotenvy::dotenv_override().map(|_| ()));
 
         let api_key = std::env::var("JEV_API_KEY")
             .ok()
@@ -82,15 +87,12 @@ impl Jev {
             .await
             .map_err(|e| JevError::Retryable(format!("network error: {e}")))?;
 
-        let status = resp.status();
+        let status = resp.status().as_u16();
         let text = resp.text().await.unwrap_or_default();
-        if status.as_u16() == 429 || status.is_server_error() {
-            return Err(JevError::Retryable(format!("{status}: {text}")));
+        match error_for_status(status, &text) {
+            Some(e) => Err(e),
+            None => parse_score(&text),
         }
-        if !status.is_success() {
-            return Err(JevError::Fatal(format!("{status}: {text}")));
-        }
-        parse_score(&text)
     }
 
     /// Like `score_jpeg`, but waits and retries up to 3 times on rate limits and server errors.
@@ -132,6 +134,16 @@ fn request_body(model: &str, jpeg: &[u8], phrase: &str) -> Value {
     })
 }
 
+/// Turns an unsuccessful HTTP status into an error a person can act on.
+fn error_for_status(status: u16, body: &str) -> Option<JevError> {
+    match status {
+        200..=299 => None,
+        401 | 403 => Some(JevError::BadKey),
+        429 | 500..=599 => Some(JevError::Retryable(format!("Jev is busy ({status}): {body}"))),
+        _ => Some(JevError::Fatal(format!("Jev returned {status}: {body}"))),
+    }
+}
+
 fn parse_score(text: &str) -> Result<Score, JevError> {
     let v: Value = serde_json::from_str(text)
         .map_err(|e| JevError::Fatal(format!("unreadable reply ({e}): {text}")))?;
@@ -156,6 +168,17 @@ mod tests {
         assert!((s.noul - 0.87).abs() < 1e-6);
         assert_eq!(s.model, "jev-1.14.0");
         assert_eq!(s.input_tokens, 412);
+    }
+
+    #[test]
+    fn errors_people_can_act_on() {
+        assert!(error_for_status(200, "").is_none());
+        let bad_key = error_for_status(401, "{}").unwrap();
+        assert!(matches!(bad_key, JevError::BadKey));
+        assert!(bad_key.to_string().contains("JEV_API_KEY"));
+        assert!(matches!(error_for_status(429, ""), Some(JevError::Retryable(_))));
+        assert!(matches!(error_for_status(503, ""), Some(JevError::Retryable(_))));
+        assert!(matches!(error_for_status(400, ""), Some(JevError::Fatal(_))));
     }
 
     #[test]

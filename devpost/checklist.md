@@ -49,7 +49,7 @@ Build mode: learn
   Learner check: Run three or four real searches in the window, open "Show more" once, try a nonsense phrase, and click a result to land on the clip in Finder, then drag it into Resolve.
   Commit: `Add search results, video preview, and reveal in Finder`
 
-- [ ] **5. Ready for someone else to run**
+- [x] **5. Ready for someone else to run**
   Becomes usable: A README that lets someone clone, add a key, and run SplitSeek, with every failure mode handled gracefully.
   Why now: Last, because it documents and hardens what actually got built. `6-ship` needs a runnable public repo.
   PRD ref: `prd.md > What We're Building`, `prd.md > Non-Goals`
@@ -102,3 +102,6 @@ Activity mode:
 - Renamed the confidence bar's CSS class from `.bar` to `.score-bar` — it shared a name with the top bar, which squashed the window header to 3 px. The learner caught it in the real window after the agent had dismissed the same 5 px offset in browser screenshots as a rendering artifact.
 - Added a Search button (learner request: there was no visible cue to press Return) and video preview with a two-pane layout and a "⋯ → Show in Finder" menu (learner request during slice 4, moving playback out of "Deferred From the POC"). An AVFoundation check showed all three cameras' HEVC `hvc1` clips are playable on the Mac. PRD, spec, and slice 4 updated; default window widened to fit two sides.
 - Video is served by SplitSeek's own `clip://` channel instead of Tauri's asset protocol — in the real window the preview was black with audio. Temporary diagnostics showed the clip labelled `text/html`: Tauri matches only a lowercase `mp4` extension, and its byte sniffing doesn't recognise Canon/DJI MP4s. The new channel labels by extension regardless of case, serves ranges, and allows only the prepared folder's clips (stricter than the folder-wide asset scope). Confirmed in the learner's window: playback started at the best moments (2.00 s, 64.00 s) in real time.
+- A rejected Jev key (401/403) now reads "Jev rejected the API key — check JEV_API_KEY in .env" instead of raw server JSON, and `.env` is re-read with override so a fixed key works without restarting — found while testing failure handling in slice 5.
+- The clean-clone check used a fresh copy of the tracked files plus the README (the README isn't committed until the learner's check), with no `.env`, build output, or `node_modules`: `npm install`, `cp .env.example .env`, and `npm run tauri dev` built and opened the app with no errors.
+- The README describes SplitSeek as a standalone app beside any video editor, not Resolve specifically — the learner noted that naming DaVinci Resolve made it read as required or built for it.

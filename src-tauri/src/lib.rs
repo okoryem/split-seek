@@ -158,9 +158,16 @@ async fn search(state: State<'_, AppState>, phrase: String) -> Result<SearchResp
     let prepared = state.prepared.lock().await;
     let prepared = prepared.as_ref().ok_or("Choose a folder first.")?;
 
-    let result = search::search(&jev, &prepared.frames, &phrase, Source::Boosted)
-        .await
-        .map_err(|e| e.to_string())?;
+    let result = match search::search(&jev, &prepared.frames, &phrase, Source::Boosted).await {
+        Ok(r) => r,
+        Err(e) => {
+            // A rejected key: drop the client so the next search re-reads .env.
+            if matches!(e, jev::JevError::BadKey) {
+                *state.jev.lock().await = None;
+            }
+            return Err(e.to_string());
+        }
+    };
 
     let below_total = result.below.len();
     let started = std::time::Instant::now();
