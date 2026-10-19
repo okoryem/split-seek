@@ -73,13 +73,13 @@ Build mode: learn
 ## Code Tour and App Map
 
 - [x] Learning activity complete — prior practice connected: the black-screen video diagnosis in slice 4
-- [ ] Optional edit and transfer reflection addressed — offered/declined/already covered/not applicable as appropriate
+- [x] Optional edit and transfer reflection addressed — edit not applicable; reflection offered and declined
 - [x] `devpost/app-map.html` generated from finished code, checked, and shown, including a project-grounded practice to reuse
 
 Activity and evidence: Focused alternative, already done during the build. The video preview passed browser checks but showed a black picture with audio in the real window; temporary diagnostics (learner clicked one result) showed the clip served as `text/html`; Tauri's `mime_type.rs` confirmed a lowercase-only `mp4` match; fixed with `clip_protocol.rs` and its tests; a second diagnostic run showed playback from 2.00 s and 64.00 s. Connected to the practice "instrument the real environment instead of guessing" (also the squashed-header bug).
 Route and stops: Reference route only (not toured): `src/main.js` `runSearch` → `src-tauri/src/lib.rs` `async fn search(` → `src-tauri/src/search.rs` `fn group(`.
 Edit outcome: Not applicable (focused alternative; learner-requested changes during final review were already made and committed).
-Reflection: 
+Reflection: Offered ("What would you do differently next time you start with an agent?"); the learner moved on to `6-ship` without answering, which counts as declined.
 Activity mode: Prior practice connected, plus the app map.
 
 ## Revisions
