@@ -1,4 +1,7 @@
+pub mod frames;
 pub mod jev;
+pub mod scan;
+pub mod search;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

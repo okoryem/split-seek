@@ -28,12 +28,12 @@ The "oh, that's cool" beat is that it finds the right moment among clips that lo
 
 ## The POC Boundary
 - Works on **one folder** of the learner's real clips (e.g., one trip or location, roughly 20–50 clips with lookalikes).
-- Pulls sample frames from each clip and applies a simple contrast boost or LOG-to-normal conversion to **temporary copies only**. Original files are read-only and never modified, and the temporary frames are deleted afterward.
+- Pulls sample frames from each clip and applies a simple contrast boost or LOG-to-normal conversion to **small copies only**. Original files are read-only and never modified. The copies are kept in SplitSeek's own cache folder on the Mac, never beside the originals, so reopening a folder is fast (added at the first build checkpoint; see `prd.md > Product Decisions`).
 - Free-text search phrase → Jev AI yes/no matching on frames → list of matching clips plus timestamps.
 - Runs locally as a separate tool, outside Resolve.
 
 ## Later
-- Scale to the full ~500 GB library, which will need pre-indexing and caching of extracted frames.
+- Scale to the full ~500 GB library, which will need pre-indexing. (Per-clip caching of extracted frames moved into the PoC at the first build checkpoint.)
 - Speech search ("find where someone says…"), which needs a separate transcription tool because Jev doesn't process audio.
 - Organize clips into folders by date range or location on request.
 - Write results into Resolve's clip Keywords and Comments, e.g., through CSV metadata import.

@@ -19,7 +19,7 @@ Build mode: learn
   Learner check: Run the probe on a frame you choose with two phrases, one right and one wrong, and say whether the scores make sense to you.
   Commit: `Scaffold Tauri app and verify Jev scores a frame`
 
-- [ ] **2. Search a folder of your clips from the terminal**
+- [x] **2. Search a folder of your clips from the terminal**
   Becomes usable: `cargo run --example search_cli -- <folder> "<phrase>"` prepares a folder (finds videos in subfolders, pulls LOG and boosted frames every 2 s into a temp folder) and prints ranked moments: clip name, `m:ss`, score, split at the 30% cutoff, plus frame count and elapsed time. A `--raw` flag scores the LOG frames instead of the boosted ones.
   Why now: This is the unique kernel, end to end, on real footage, before any UI. If matching quality or speed is poor, we learn it here, and the raw-vs-boosted comparison you agreed to in the spec happens here too. Later slices only put a window around it.
   PRD ref: `prd.md > Preparing Clips`, `prd.md > Searching`, `prd.md > Ranked Results`
@@ -29,18 +29,18 @@ Build mode: learn
   Learner check: Point `search_cli` at a real trip folder, run three or four searches you'd actually make while editing, and say whether the top results are the right moments and whether the speed feels usable. Also say whether boosted or raw looks better from the comparison.
   Commit: `Add folder scan, frame prep, and ranked Jev search`
 
-- [ ] **3. Choose or drag in a folder and watch it prepare**
-  Becomes usable: The SplitSeek window in its dark Resolve-style look. "Choose folder" or dragging a folder in starts preparation with "Pulling frames from your clips… 12 / 48" progress, then the search box unlocks. A folder with no videos shows "There are no videos in this folder." and stays on the picker.
+- [ ] **3. Choose or drag in a folder, watch it prepare, and have it remembered**
+  Becomes usable: The SplitSeek window in its dark Resolve-style look. "Choose folder" or dragging a folder in starts preparation with "Pulling frames from your clips… 12 / 48" progress, then the search box unlocks. Clips prepared before load from SplitSeek's frame cache without ffmpeg, so reopening a folder is fast. A folder with no videos shows "There are no videos in this folder." and stays on the picker. "Forget prepared frames" clears the cache.
   Why now: The engine is proven, so this connects it to the first half of the core journey. The look gets set here, while there's still room to change it.
   PRD ref: `prd.md > The Core Journey` (steps 1–3), `prd.md > Choosing a Folder`, `prd.md > Preparing Clips`, `prd.md > Look and Feel`, `prd.md > States and Boundaries`
   Spec ref: `spec.md > Look and Feel`, `spec.md > Components` (Folder Intake, Frame Preparer), `spec.md > Data Model` (`Prepared` app state)
-  Build: `index.html` with the three states, `styles.css` with the spec palette and typography, a `prepare_folder` command keeping `Prepared` in app state, `prepare-progress`/`prepare-done` events, the dialog plugin and drag-drop event, and capabilities. The temp folder is replaced when a new folder is chosen and deleted when the app closes.
-  Verify (mechanical): `cargo test` and `cargo build` pass. Run `npm run tauri dev` with no errors in the terminal or webview console. Trigger preparation on the fixture folder and confirm the progress events and frame count in the log. Confirm the temp folder is replaced on a second pick and removed on quit.
-  Learner check: Open SplitSeek beside Resolve, drag in a trip folder, watch the progress, then try an empty folder. Say whether it looks and feels like it belongs next to Resolve.
+  Build: The per-clip frame cache in `frames.rs` (key from path + size + modified time; `.partial` folder renamed on completion; clear-cache function), used by `search_cli` too. `index.html` with the three states, `styles.css` with the spec palette and typography, a `prepare_folder` command keeping `Prepared` in app state, `prepare-progress`/`prepare-done` events, a `forget_prepared_frames` command, the dialog plugin and drag-drop event, and capabilities.
+  Verify (mechanical): `cargo test` and `cargo build` pass, including tests for cache keys and for an interrupted `.partial` folder being ignored. Prepare the fixture folder twice with `search_cli`: the second run reports every clip as cached and takes well under a second. Touch one clip and confirm only that clip is re-prepared. Run `npm run tauri dev` with no errors in the terminal or webview console; trigger preparation and confirm the progress events and frame count in the log. Confirm nothing is written to the clips' folder, and that "Forget prepared frames" empties the cache.
+  Learner check: Open SplitSeek beside Resolve and drag in the folder of clips you copied to your Mac for the demo. Watch the progress, then quit, reopen, and drag it in again: the second time should be almost instant. Try an empty folder too. Say whether it looks and feels like it belongs next to Resolve.
   Commit: `Add folder picker, drag-drop, and preparation progress`
 
 - [ ] **4. Search in the window, see ranked moments, and jump to the clip**
-  Becomes usable: The full core journey. Type a phrase, get ranked rows (LOG thumbnail, file name, `m:ss`, confidence with an orange bar), use "Show more (N)" for near-misses, see the "came close" and "Nothing found" states, and click a row to reveal the clip in Finder. Searching again needs no re-preparation.
+  Becomes usable: The full core journey. Type a phrase, get ranked rows, one per stretch (LOG thumbnail of the best frame, file name, time range and best moment, confidence with an orange bar), use "Show more (N)" for near-misses, see the "came close" and "Nothing found" states, and click a row to reveal the clip in Finder. Searching again needs no re-preparation.
   Why now: This completes the journey on top of a working engine and window, so it's mostly wiring and presentation. This is also where we check that previews don't slow the search.
   PRD ref: `prd.md > The Core Journey` (steps 4–7), `prd.md > Ranked Results`, `prd.md > Reveal in Finder`, `prd.md > States and Boundaries`
   Spec ref: `spec.md > Components` (Search and Ranking, Results View, Reveal in Finder), `spec.md > Important Failure Modes` (missing key)
@@ -61,7 +61,7 @@ Build mode: learn
 
 ## Hands-on Checkpoints
 
-- [ ] Early usable behavior explored — after slice 2: real searches on your footage from the terminal, plus raw vs. boosted. Match quality and speed here decide the cutoff, the boost, and whether anything needs to change before we build UI.
+- [x] Early usable behavior explored — after slice 2. The learner reviewed the real `flip/` results and gave feedback that changed the plan (one row per stretch; remember prepared clips) but did not run the terminal search themselves and chose to move on. Their first hands-on use of real footage is slice 3's learner check in the window.
 - [ ] Final kick-the-tires exploration and feedback completed
 
 ## Final Review
@@ -85,3 +85,12 @@ Activity mode:
 - Jev images go in a top-level `assets` map referenced from `state`, and the yes/no descriptions are `criteria.true`/`criteria.false` — Jev's images docs showed the spec's `state`-only image and `yes`/`no` fields were wrong. Spec updated; verified on a Peru clip.
 - Frames must stay 280–1568 px per side — Jev rejects, rather than resizes, out-of-range images. Slice 2 must keep frames inside these limits, including for unusually wide or tall footage.
 - First probe on one Peru frame: boosted 84% vs. raw 68% on "young people at a mountain lake", both under 5% on wrong phrases. That's an early sign the boost helps; slice 2's comparison decides it.
+- Frames are pulled from keyframes only, decoded on the Mac's video hardware, with a full-decode fallback when keyframes are sparse — full software decode of 4K 10-bit HEVC took 36 s for a 48 s clip vs. 1.1 s keyframe-only. Your Canon/DJI clips have a keyframe every 1.25 s, so timestamps stay within the agreed ±2 s.
+- Frames scale so the short side is 288 px (16:9 → 512×288, vertical → 288×512) and are converted to full-range color — Jev rejects images under 280 px, and ffmpeg's JPEG encoder refused limited-range video from some sources.
+- The scan follows linked files (not linked folders) — a linked clip was silently ignored in testing.
+- `flip/` (47 clips, 43 GB, 55 min) took 19.5 min to prepare, entirely limited by the USB drive (~40 MB/s raw read). Seeking to each 2 s point instead read just as much data (15.1 s for a 625 MB clip), so it was not adopted. Searches took 14–15 s for 1,656 frames with 0 failures; the top hits for all four real phrases were correct when checked against the originals.
+- Raw vs. boosted on `flip/`: no meaningful difference — top hits overlap, scores within a few points. Bring to the learner at the early checkpoint.
+- A 30% cutoff let a wrong phrase ("a city skyline with skyscrapers") show 4–5 sunset frames at 34–57%; the cutoff likely needs to rise (tune in slice 4).
+- Results are one row per stretch (back-to-back matching frames of a clip), not one per 2-second moment — at the early checkpoint the learner chose this after a 30-second match took 15 rows. PRD and spec updated; grouping lives in `search.rs`.
+- Prepared frames are remembered per clip in `~/Library/Caches/com.splitseek.app/frames/` instead of a temp folder deleted on close — at the early checkpoint the learner asked for memory (all clips live on one slow Passport drive; first prep of `flip/` took ~20 min). This reverses the PRD's "no memory between sessions"; scope, PRD, spec, and slice 3 updated. Added to slice 3.
+- The boost stays as is — raw vs. boosted showed no clear difference on `flip/`, and the learner didn't ask to change it.

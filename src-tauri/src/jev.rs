@@ -92,7 +92,24 @@ impl Jev {
         }
         parse_score(&text)
     }
+
+    /// Like `score_jpeg`, but waits and retries up to 3 times on rate limits and server errors.
+    pub async fn score_jpeg_with_retry(&self, jpeg: &[u8], phrase: &str) -> Result<Score, JevError> {
+        let mut wait = Duration::from_millis(500);
+        for _ in 0..MAX_RETRIES {
+            match self.score_jpeg(jpeg, phrase).await {
+                Err(JevError::Retryable(_)) => {
+                    tokio::time::sleep(wait).await;
+                    wait *= 2;
+                }
+                other => return other,
+            }
+        }
+        self.score_jpeg(jpeg, phrase).await
+    }
 }
+
+const MAX_RETRIES: usize = 3;
 
 fn request_body(model: &str, jpeg: &[u8], phrase: &str) -> Value {
     let data = base64::engine::general_purpose::STANDARD.encode(jpeg);

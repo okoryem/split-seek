@@ -15,7 +15,7 @@ Named **SplitSeek**, a play on the video-editing term "split" (learner choice; "
 2. **Choose a folder.** Either browse to it or drag the folder in, for example from the desktop or an SD card.
 3. **Preparation.** The app tells the learner it's pulling frames from the clips and shows progress. Search is unavailable until preparation finishes.
 4. **Search.** Type a phrase ("dog running in a field", "street market at night") and submit.
-5. **Ranked results.** Each matching moment appears as its own row, ranked highest confidence first. Only moments at or above the cutoff appear by default.
+5. **Ranked results.** Each matching stretch of a clip appears as its own row, ranked highest confidence first. Only stretches at or above the cutoff appear by default.
 6. **Act on a result.** Click a row to reveal that clip in Finder, then bring it into Resolve.
 7. **Repeat.** Search again on the same folder with no re-preparation wait. This is where the speed shows.
 
@@ -46,7 +46,9 @@ The window should work comfortably beside Resolve, not full screen.
 - As the learner, I want a clear one-time wait, after which every search is fast.
   - [ ] While preparing, the app shows that it's pulling frames and how far along it is.
   - [ ] When preparation finishes, the search box becomes available.
-  - [ ] Any brightened or converted frames used for matching are temporary and are cleaned up afterward (`scope.md > The POC Boundary`).
+  - [ ] Brightened or converted frames are stored only in SplitSeek's cache folder on the Mac, never beside the originals (`scope.md > The POC Boundary`).
+  - [ ] Reopening a folder that was prepared before loads its unchanged clips without preparing them again; new or changed clips are prepared.
+  - [ ] There's a way to clear the remembered frames.
 
 ### Searching
 - As the learner, I want to describe a moment in plain words and get the moments that match, so I don't have to scrub through lookalike thumbnails.
@@ -56,7 +58,7 @@ The window should work comfortably beside Resolve, not full screen.
 
 ### Ranked Results
 - As the learner, I want results ranked by confidence, with weak matches hidden, so a vague match in 70 out of 100 clips doesn't bury the real one.
-  - [ ] Each row is one moment and shows the **file name**, the **timestamp** of the moment, the **confidence**, and a **preview of the matched frame** (original LOG). If one clip matches at several moments, each moment gets its own row.
+  - [ ] Each row is one **stretch**: back-to-back matching moments in one clip are a single row. It shows the **file name**, the **time range** (e.g. 0:04–0:26) and the **best moment** in it, the **confidence** (the best moment's), and a **preview of the best frame** (original LOG). If one clip matches in separate places, each stretch gets its own row.
   - [ ] Rows are sorted by confidence, highest first.
   - [ ] Moments below the cutoff are hidden by default.
   - [ ] A "Show more" control reveals the below-cutoff moments, still ranked, beneath the main results.
@@ -73,27 +75,26 @@ The window should work comfortably beside Resolve, not full screen.
 - **Nothing above the cutoff:** a message along the lines of "We couldn't find anything above [cutoff], but here are some that came close," followed by the best below-cutoff moments, ranked.
 - **No matches at all:** a plain "nothing found" message. *Assumption: this is the fallback when nothing is returned even below the cutoff.*
 - **Folder has no videos:** "There are no videos in this folder." The learner can choose another folder.
-- **Persistence:** none between sessions. Prepared frames last only while the app is open on that folder. Reopening the app, or adding new clips, means preparing fresh. The learner's reason: clips get reused across many projects, so remembering everything could get large, and a fresh start picks up new clips.
+- **Persistence:** prepared frames are remembered per clip between sessions. Reopening a folder, or the app, skips clips already prepared; new or changed clips (different name, size, or modified time) are prepared. Search results are not remembered. Remembered frames can be cleared.
 
 ## Product Decisions
 - **Separate app beside Resolve, not a plugin.** They'll keep it open while editing.
 - **Folder via picker or drag-and-drop.** Dragging is easier when the folder is on the desktop.
 - **Ranked by confidence with a cutoff, plus "Show more."** Showing every weak match would be too much, but near-misses should still be reachable.
-- **One row per moment.** Each row is directly usable for finding a specific shot.
+- **One row per stretch.** Changed at the first build checkpoint: one row per 2-second moment filled the list with the same clip (a 30-second match took 15 rows). A stretch row still points to the exact best moment, so it remains directly usable for finding a shot.
 - **Preview shows the LOG frame, not the converted one.** It matches what the learner sees in Resolve.
 - **Click reveals in Finder; no playback.** Simpler, and enough to get the clip into Resolve.
-- **No memory between sessions.** Footage gets reused across projects, so caching everything isn't worth it now.
+- **Remember prepared clips between sessions.** Changed at the first build checkpoint, reversing "no memory between sessions": preparing a 43 GB folder from the learner's USB drive took about 20 minutes, limited by the drive itself. The learner keeps all their clips on one Passport drive and returns to the same footage, so remembering makes every visit after the first fast. The earlier concerns are covered: the frames are small (roughly 50–100 MB per large trip folder), and checking each clip's name, size, and modified time still picks up new clips.
 - **Dark, Resolve-inspired look.** It's the editor they use.
 - *Assumption:* the cutoff is a fixed value tuned during the build on real footage (around 20–40%, per the learner's initial thinking), not a user-facing setting.
 
 ## What We're Building
-- One dark window: choose or drag a folder → prepare with progress → search → ranked rows (file name, timestamp, confidence, LOG preview) → "Show more" for below-cutoff moments → click to reveal in Finder.
+- One dark window: choose or drag a folder → prepare with progress → search → ranked rows, one per stretch (file name, time range and best moment, confidence, LOG preview) → "Show more" for below-cutoff moments → click to reveal in Finder.
 - The empty, no-videos, and nothing-above-cutoff states described above.
-- Matching powered by Jev AI on contrast-boosted or converted temporary frames, with the original files left untouched.
+- Matching powered by Jev AI on contrast-boosted or converted frame copies, remembered per clip in SplitSeek's cache, with the original files left untouched.
 
 ## Deferred From the POC
 - **Playback at the matched moment.** Playing high-bitrate LOG may be heavy, and reveal-in-Finder is enough for now.
-- **Remembering prepared folders between sessions.** The learner chose a fresh preparation each time.
 - **Adjustable cutoff setting.** Fixed and tuned during the build for now.
 
 ## Possible Later Enhancements

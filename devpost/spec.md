@@ -11,9 +11,9 @@ SplitSeek is a **Tauri** desktop app. Tauri is a framework (not a language) for 
 - **The window (frontend):** a plain HTML/CSS/JavaScript page that macOS draws in its built-in web view. It shows the folder picker, progress, search box, and ranked results in a dark, Resolve-style look.
 - **The engine (backend):** Rust code running on your Mac. It does everything a web page isn't allowed to do: list the videos in your folder, run **ffmpeg** (the command-line video tool) to pull frames, call **Jev** with your API key, and open Finder.
 
-When you pick a folder, the engine has ffmpeg grab one frame every 2 seconds from every clip. It saves two small JPEGs per moment: the original **LOG** frame (for the preview) and a **boosted** copy with more contrast and color (for Jev). The JPEGs go into a temporary folder, and your original clips are only ever read.
+When you pick a folder, the engine has ffmpeg grab one frame every 2 seconds from every clip. It saves two small JPEGs per moment: the original **LOG** frame (for the preview) and a **boosted** copy with more contrast and color (for Jev). The JPEGs go into SplitSeek's cache folder on your Mac, one subfolder per clip, so a clip prepared once is never prepared again unless it changes. Your original clips are only ever read.
 
-When you search, the engine asks Jev one yes/no question per boosted frame: "Does this frame show: *street market at night*?" Jev answers with a number from 0 to 1. The engine sends many of these questions at once, sorts the moments by score, splits them at the cutoff (30% to start), and sends the list back to the window. Clicking a row tells the engine to reveal that clip in Finder.
+When you search, the engine asks Jev one yes/no question per boosted frame: "Does this frame show: *street market at night*?" Jev answers with a number from 0 to 1. The engine sends many of these questions at once, joins back-to-back matching frames of the same clip into one stretch, sorts the stretches by their best score, splits them at the cutoff (30% to start), and sends the list back to the window. Clicking a row tells the engine to reveal that clip in Finder.
 
 Why this shape: there's no server, database, or account. It's one app on your laptop, and the only outside service is Jev, which is the point of the project. The prepared frames last only while the app is open, which is exactly what the PRD asks for.
 
@@ -24,7 +24,7 @@ PRD ref: `prd.md > The Core Journey`.
 2. **Choose or drag in a folder** → the window sends the folder path to the engine (`prepare_folder`).
 3. **Preparation** → the engine finds the video files, runs ffmpeg on several clips at a time, and sends a progress update after each clip. The window shows "Pulling frames from your clips… 12 / 48". When it finishes, the search box unlocks.
 4. **Search** → the window sends the phrase (`search`). The engine sends one Jev yes/no question per boosted frame, many in parallel, and collects the scores.
-5. **Ranked results** → the engine sorts by score, splits the moments into above-cutoff and below-cutoff lists, and attaches the LOG preview for each row. The window draws the rows, plus "Show more" if any moments fell below the cutoff.
+5. **Ranked results** → the engine groups frames into stretches, sorts by score, splits the stretches into above-cutoff and below-cutoff lists, and attaches the LOG preview for each row. The window draws the rows, plus "Show more" if any moments fell below the cutoff.
 6. **Click a row** → the window sends the clip path (`reveal_in_finder`), and Finder opens with that file selected.
 7. **Search again** → this reuses the frames already prepared in memory and on disk, so there's no ffmpeg wait.
 
@@ -42,7 +42,7 @@ click row        ──reveal───▶ open -R <clip>  ───────�
 - **Tauri 2** (Rust backend plus web frontend). Learner choice: they wanted to try Rust and use the coding agent to work in an unfamiliar language. Tradeoff accepted: Rust's learning curve and compile errors. Docs: https://v2.tauri.app/start/
 - **Rust (stable, installed via rustup)**. Not installed yet; setting it up is an early build step. Docs: https://www.rust-lang.org/tools/install
 - **Plain HTML/CSS/JavaScript frontend, no UI framework.** Agent recommendation, accepted by the learner at review: the window has one screen in three states, so React or similar would add setup without helping the proof.
-- **Rust crates:** `tokio` (run things in parallel), `reqwest` (HTTP calls to Jev), `serde`/`serde_json` (JSON), `base64` (encoding frames), `dotenvy` (reading the API key from `.env`), `futures` (limiting how many Jev calls run at once), `tempfile` (temporary folder).
+- **Rust crates:** `tokio` (run things in parallel), `reqwest` (HTTP calls to Jev), `serde`/`serde_json` (JSON), `base64` (encoding frames), `dotenvy` (reading the API key from `.env`), `futures` (limiting how many Jev calls run at once), `tempfile` (temporary folders in tests).
 - **Tauri plugins:** `tauri-plugin-dialog` for the folder picker (https://v2.tauri.app/plugin/dialog/). Drag-and-drop uses Tauri's built-in window drag-drop event. Reveal in Finder runs macOS's `open -R <path>`.
 - **ffmpeg / ffprobe 9.0.1**, already installed via Homebrew. Called as a command-line program. Docs: https://ffmpeg.org/ffmpeg-filters.html
 - **Node v26 / npm**, already installed. Used only by the Tauri CLI (`npm run tauri dev`).
@@ -74,7 +74,7 @@ From `prd.md > Look and Feel`:
 - PRD ref: `prd.md > Choosing a Folder`, `prd.md > States and Boundaries`.
 
 ### Frame Preparer (`frames.rs`)
-- Deletes any previous temporary folder, then creates a new one (`$TMPDIR/splitseek-<id>/`).
+- **Frame cache:** `~/Library/Caches/com.splitseek.app/frames/<key>/`, one folder per clip. The key is a hash of the clip's full path, size, and modified time, so a renamed, edited, or replaced clip gets a fresh key. A clip whose folder exists is loaded without running ffmpeg. New clips are written to `<key>.partial/` and renamed when complete, so an interrupted preparation never leaves half a clip cached.
 - For each clip, runs one ffmpeg command with two outputs, at most 4 clips at a time:
   - LOG preview: `fps=1/2,scale=512:-2` → `<clip-id>/log_%05d.jpg`
   - Boosted for Jev: `fps=1/2,scale=512:-2,eq=contrast=1.35:saturation=1.6:gamma=1.1` → `<clip-id>/boost_%05d.jpg`
@@ -82,7 +82,7 @@ From `prd.md > Look and Feel`:
 - The boost values are a starting point, tuned in the raw-vs-boosted check (see Decisions).
 - Sends a `prepare-progress` event `{done, total, clip}` after each clip, then `prepare-done` with the frame count.
 - A clip ffmpeg can't read is skipped and counted, and preparation continues.
-- The temporary folder is deleted when a new folder is chosen and when the app closes.
+- A "Forget prepared frames" control deletes the whole cache folder. Nothing is ever written beside the original clips.
 - PRD ref: `prd.md > Preparing Clips`.
 
 ### Jev Client (`jev.rs`)
@@ -93,14 +93,14 @@ From `prd.md > Look and Feel`:
 - PRD ref: `prd.md > Searching`.
 
 ### Search and Ranking (`search.rs`)
-- `search(phrase)` → scores every boosted frame → returns `{ above: Moment[], below: Moment[], elapsed_ms }`, sorted by score from highest to lowest.
+- `search(phrase)` → scores every boosted frame → groups back-to-back frames of the same clip on the same side of the cutoff into one stretch (a `Moment`) → returns `{ above: Moment[], below: Moment[], elapsed_ms }`, sorted by each stretch's best score from highest to lowest.
 - `CUTOFF = 0.30`, a constant tuned during the build (`prd.md > Product Decisions`).
 - Each moment includes its LOG preview as a base64 data URL, so the window doesn't need file access.
 - Every search logs the frame count and elapsed time to the terminal. This is the measurement that decides whether speed work is needed.
 - PRD ref: `prd.md > Searching`, `prd.md > Ranked Results`.
 
 ### Results View (frontend: `src/main.js`, `src/styles.css`)
-- Each row shows the thumbnail, file name, timestamp (`m:ss`), and confidence (percent plus a thin orange bar). There's one row per moment.
+- Each row shows the thumbnail of the best frame, file name, time range and best moment (`0:04–0:26 · best 0:12`), and confidence (percent plus a thin orange bar). There's one row per stretch.
 - If any moments are below the cutoff, a "Show more (N)" button reveals them underneath.
 - If `above` is empty but `below` isn't, the view shows "We couldn't find anything above 30%, but here are some that came close." with the `below` list expanded.
 - If both are empty, it shows "Nothing found for '<phrase>'."
@@ -117,14 +117,15 @@ All of this lives in the engine's memory as Tauri app state:
 ```rust
 struct Frame  { clip_path: PathBuf, clip_name: String, t_sec: u32,
                 log_jpg: PathBuf, boost_jpg: PathBuf }
-struct Prepared { folder: PathBuf, temp_dir: TempDir, frames: Vec<Frame> }
-struct Moment { clip_path, clip_name, t_sec, score: f32, preview_data_url: String }
+struct Prepared { folder: PathBuf, frames: Vec<Frame>, clip_count, cached_count, skipped }
+struct Moment { clip_path, clip_name, start_sec, end_sec, best_sec,   // one stretch
+                score: f32, preview_data_url: String }      // best frame's
 ```
 
 | Data | Where it lives | How it updates | When you leave and come back |
 |---|---|---|---|
-| Chosen folder plus frame list | Engine memory (`Prepared`) | Replaced when you pick a new folder | Gone. Reopening means preparing again (PRD decision) |
-| Frame JPEGs | `$TMPDIR/splitseek-<id>/` | Written during preparation | Deleted on a new folder or app close |
+| Chosen folder plus frame list | Engine memory (`Prepared`) | Replaced when you pick a new folder | Rebuilt quickly from the frame cache |
+| Frame JPEGs | `~/Library/Caches/com.splitseek.app/frames/<clip key>/` | Written once per clip during preparation | Persist until "Forget prepared frames" |
 | Search results | Window memory | Replaced on each search | Gone |
 | Jev API key | `.env` (gitignored) | Edited by hand | Persists |
 
@@ -209,6 +210,9 @@ A local program, with no key or cost. Filters reference: https://ffmpeg.org/ffmp
 - **Tauri 2 + Rust** (learner): wants to try Rust through the coding agent and accepts the learning curve.
 - **Every 2 seconds** (learner): "even if it's off by one or two seconds, the user can catch that"; every 5 seconds might miss moments.
 - **Fallback path** (learner): try `jev-preview`, don't contact TypeSafe, and use a different vision model only if all else fails.
+- **Remember prepared clips** (learner, first build checkpoint): all clips live on one Passport drive that reads at ~40 MB/s, so the first preparation of a large folder takes ~20 minutes; per-clip caching makes later visits fast.
+- **One row per stretch** (learner, first build checkpoint): see `prd.md > Product Decisions`.
+- **Keep the generic boost** (default, first build checkpoint): on `flip/` boosted and raw LOG performed about the same; one Canon frame scored higher boosted (84% vs. 68%). The learner didn't ask to change it.
 - **Local only, no deployment** (carried from scope and PRD): demo video plus public repo.
 - **Generic boost instead of LUTs** (agent recommendation, presented to the learner): mixed cameras.
 - **Plain HTML/JS frontend; recursive folder scan; 16 parallel Jev calls; 4 parallel ffmpeg jobs; 512px frames** (agent implementation details, derived from the decisions above and open to change).

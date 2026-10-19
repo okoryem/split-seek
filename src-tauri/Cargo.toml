@@ -22,10 +22,12 @@ tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1.53.3", features = ["rt-multi-thread", "macros", "time"] }
+tokio = { version = "1.53.3", features = ["rt-multi-thread", "macros", "time", "process", "fs", "io-util", "io-std"] }
 base64 = "0.23.1"
 dotenvy = "0.15.7"
 reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls", "http2"] }
+futures = "0.3.34"
+tempfile = "3.27.0"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
