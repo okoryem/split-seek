@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SplitSeek App Map</title>
+<style>
+  :root {
+    --bg: #1e1e1e; --panel: #282828; --border: #3a3a3a;
+    --text: #d6d6d6; --muted: #9a9a9a; --accent: #e8833a; --link: #f0a46b;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg: #f6f5f3; --panel: #ffffff; --border: #d9d6d0; --text: #222; --muted: #666; --accent: #c4621b; --link: #a14f12; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+  }
+  main { max-width: 860px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 26px; margin: 0 0 4px; }
+  h2 { font-size: 18px; margin: 36px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 15px; margin: 0 0 4px; }
+  p { margin: 8px 0; }
+  .sub { color: var(--muted); margin: 0; }
+  code { font: 13px ui-monospace, "SF Mono", Menlo, monospace; background: var(--panel); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+  pre { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; overflow-x: auto; }
+  pre code { border: 0; padding: 0; background: none; }
+  a { color: var(--link); }
+  a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; margin: 10px 0; }
+  .stop { display: grid; grid-template-columns: 32px 1fr; gap: 10px; }
+  .num { width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: #1e1e1e; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .diagram { width: 100%; height: auto; display: block; }
+  .diagram text { fill: var(--text); font: 12px -apple-system, sans-serif; }
+  .diagram .small { fill: var(--muted); font-size: 11px; }
+  .diagram rect { fill: var(--panel); stroke: var(--border); }
+  .diagram rect.accent { stroke: var(--accent); }
+  .diagram line, .diagram path { stroke: var(--accent); stroke-width: 1.5; fill: none; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 13px; }
+  details { margin: 8px 0; }
+  summary { cursor: pointer; color: var(--muted); }
+  .note { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>SplitSeek, mapped</h1>
+  <p class="sub">A take-home guide to where things live in the finished proof of concept.</p>
+
+  <h2>What it is</h2>
+  <p>SplitSeek searches a folder of LOG footage by plain-language description. It pulls one frame every 2 seconds from each clip, asks <strong>Jev</strong> a yes/no question about each frame ("Does this frame show: <em>a waterfall</em>?"), and ranks the matching stretches. Clicking a result plays the original clip from the matched moment.</p>
+  <p>It's a Tauri 2 app in two halves:</p>
+  <ul>
+    <li><strong>The window</strong>, <code>src/</code>: plain HTML, CSS, and JavaScript. It shows the folder picker, progress, search box, results, and video preview.</li>
+    <li><strong>The engine</strong>, <code>src-tauri/src/</code>: Rust. It reads folders, runs ffmpeg, calls Jev, ranks results, and serves video. The window asks it to do things through <em>commands</em>.</li>
+  </ul>
+
+  <h2>One action, end to end: searching</h2>
+  <svg class="diagram" viewBox="0 0 820 300" role="img" aria-labelledby="dtitle ddesc">
+    <title id="dtitle">How a search flows through SplitSeek</title>
+    <desc id="ddesc">Typing a phrase in the window calls the engine's search command. The engine scores every cached frame with the Jev API, groups and ranks the results, and sends rows back to the window. Clicking a row plays the clip through the clip:// channel.</desc>
+    <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill: var(--accent); stroke: none"/></marker></defs>
+
+    <text x="10" y="20" class="small">WINDOW (src/main.js)</text>
+    <text x="290" y="20" class="small">ENGINE (src-tauri/src/)</text>
+    <text x="640" y="20" class="small">OUTSIDE</text>
+
+    <rect class="accent" x="10" y="34" width="220" height="54" rx="6"/>
+    <text x="22" y="56">You type a phrase → Search</text>
+    <text x="22" y="74" class="small">runSearch()</text>
+
+    <rect x="290" y="34" width="290" height="54" rx="6"/>
+    <text x="302" y="56">search command → search.rs</text>
+    <text x="302" y="74" class="small">lib.rs: async fn search · search.rs: search()</text>
+
+    <rect x="640" y="34" width="170" height="54" rx="6"/>
+    <text x="652" y="56">Jev API</text>
+    <text x="652" y="74" class="small">64 questions at a time</text>
+
+    <rect x="290" y="120" width="290" height="54" rx="6"/>
+    <text x="302" y="142">Cached frames on your Mac</text>
+    <text x="302" y="160" class="small">~/Library/Caches/com.splitseek.app/frames</text>
+
+    <rect x="290" y="206" width="290" height="54" rx="6"/>
+    <text x="302" y="228">Group into stretches, rank, cut at 60%</text>
+    <text x="302" y="246" class="small">search.rs: group() · rank() · CUTOFF</text>
+
+    <rect class="accent" x="10" y="206" width="220" height="54" rx="6"/>
+    <text x="22" y="228">Ranked rows + video preview</text>
+    <text x="22" y="246" class="small">renderResults() · preview()</text>
+
+    <line x1="230" y1="61" x2="286" y2="61" marker-end="url(#arr)"/>
+    <line x1="580" y1="54" x2="636" y2="54" marker-end="url(#arr)"/>
+    <line x1="636" y1="70" x2="584" y2="70" marker-end="url(#arr)"/>
+    <line x1="435" y1="88" x2="435" y2="116" marker-end="url(#arr)"/>
+    <line x1="435" y1="174" x2="435" y2="202" marker-end="url(#arr)"/>
+    <line x1="290" y1="233" x2="234" y2="233" marker-end="url(#arr)"/>
+    <text x="236" y="284" class="small">click a row → clip:// → clip_protocol.rs serves the original video in pieces</text>
+  </svg>
+
+  <h2>A route through the code</h2>
+  <p class="note">A reference route: three stops that follow the search above. Search for the anchor text in your editor; line numbers drift as the code changes.</p>
+
+  <div class="card stop">
+    <div class="num" aria-hidden="true">1</div>
+    <div>
+      <h3><code>src/main.js</code>, search for <code>async function runSearch</code></h3>
+      <p>Where the Search button lands. It stops any playing preview, then calls the engine with <code>invoke("search", { phrase })</code>. When the answer comes back, <code>renderResults</code> draws the rows, "Show more", and the empty states. A counter (<code>searchId</code>) ignores a slow search if you've already started a newer one.</p>
+    </div>
+  </div>
+
+  <div class="card stop">
+    <div class="num" aria-hidden="true">2</div>
+    <div>
+      <h3><code>src-tauri/src/lib.rs</code>, search for <code>async fn search(</code></h3>
+      <p>The engine's side of that call. It creates the Jev client on the first search (so a missing key gives a plain message), runs the search over the prepared frames, then attaches each row's LOG thumbnail. If Jev rejects the key, it drops the client so the next search re-reads <code>.env</code>.</p>
+    </div>
+  </div>
+
+  <div class="card stop">
+    <div class="num" aria-hidden="true">3</div>
+    <div>
+      <h3><code>src-tauri/src/search.rs</code>, search for <code>fn group(</code></h3>
+      <p>Turns hundreds of frame scores into a short list. Back-to-back frames of the same clip on the same side of the cutoff become one stretch (e.g. <code>0:04–0:26 · best 0:12</code>). Then <code>rank</code> sorts the stretches and splits them at <code>CUTOFF</code>. The tests at the bottom of the file show the rules with small examples.</p>
+    </div>
+  </div>
+
+  <details>
+    <summary>Where the other pieces live</summary>
+    <table>
+      <tr><th>File</th><th>Job</th></tr>
+      <tr><td><code>src-tauri/src/scan.rs</code></td><td>Finds video files, including subfolders; skips hidden files, <code>._</code> sidecars, and <code>.LRF</code> proxies.</td></tr>
+      <tr><td><code>src-tauri/src/frames.rs</code></td><td>Runs ffmpeg (keyframes only, hardware decode) and keeps the per-clip frame cache.</td></tr>
+      <tr><td><code>src-tauri/src/jev.rs</code></td><td>Builds the Jev request, sends it, retries when Jev is busy.</td></tr>
+      <tr><td><code>src-tauri/src/clip_protocol.rs</code></td><td>Serves video to the preview player, only for clips in the prepared folder.</td></tr>
+      <tr><td><code>src-tauri/examples/</code></td><td><code>jev_probe</code> and <code>search_cli</code>, the terminal tools used before the window existed.</td></tr>
+    </table>
+  </details>
+
+  <h2>To change this, start here</h2>
+  <table>
+    <tr><th>If you want to change…</th><th>Start at</th></tr>
+    <tr><td>How confident a match must be to show by default</td><td><code>CUTOFF</code> in <code>src-tauri/src/search.rs</code> (now <code>0.60</code>)</td></tr>
+    <tr><td>How often frames are sampled</td><td><code>SAMPLE_EVERY_SEC</code> in <code>src-tauri/src/frames.rs</code>. Then use "Forget prepared frames", since cached clips keep their old sampling.</td></tr>
+    <tr><td>The LOG contrast boost Jev sees</td><td><code>BOOST</code> in <code>src-tauri/src/frames.rs</code>. Forget prepared frames afterwards too.</td></tr>
+    <tr><td>The question Jev is asked</td><td><code>fn request_body</code> in <code>src-tauri/src/jev.rs</code></td></tr>
+    <tr><td>How many Jev questions run at once</td><td><code>PARALLEL_REQUESTS</code> in <code>src-tauri/src/search.rs</code> (64; 128 caused failures)</td></tr>
+    <tr><td>Colors and fonts</td><td><code>:root</code> at the top of <code>src/styles.css</code></td></tr>
+    <tr><td>What a result row shows</td><td><code>function renderRow</code> in <code>src/main.js</code></td></tr>
+  </table>
+
+  <h2>A practice to reuse</h2>
+  <div class="card">
+    <h3>When the real environment disagrees, instrument it instead of guessing</h3>
+    <p><strong>What happened.</strong> The video preview passed every check in a browser test, then showed a black picture with audio in the real app window. Several causes were plausible: 10-bit HEVC not drawing, seeking failing, or file access breaking. Instead of trying fixes one by one, the build added temporary diagnostics that logged what the video player and the file response actually reported. One click in the real window produced the answer: the clip was labelled <code>text/html</code> instead of <code>video/mp4</code>. Tauri's source confirmed it only recognises a lowercase <code>mp4</code> extension, and the cameras write <code>.MP4</code>.</p>
+    <p><strong>The evidence.</strong> <code>devpost/checklist.md</code> under Revisions; the fix in <code>src-tauri/src/clip_protocol.rs</code>, whose tests pin the case-insensitive file type and byte ranges; and a second diagnostic run showing playback starting at the best moments (2.00 s and 64.00 s). The diagnostics were removed before committing.</p>
+    <p><strong>Reusing it.</strong> When an agent's checks pass but the real thing misbehaves, ask for a small, temporary probe that records what the system actually sees, run it once in the real environment, and fix what the evidence points to. A test that pins the cause keeps it fixed. The same habit caught a squashed window header in this build: an unexplained 5&nbsp;px offset in test screenshots that had been written off as a rendering quirk.</p>
+  </div>
+
+  <h2>Run it again</h2>
+<pre><code>npm install
+cp .env.example .env    # then add JEV_API_KEY
+npm run tauri dev</code></pre>
+  <p>Tests: <code>cd src-tauri &amp;&amp; cargo test</code>. Full setup is in <code>README.md</code>.</p>
+  <p class="note">This map is a snapshot of commit <code>f46e4da</code> and will drift as the code changes. Search anchors are more reliable than line numbers.</p>
+</main>
+</body>
+</html>

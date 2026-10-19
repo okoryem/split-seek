@@ -62,25 +62,25 @@ Build mode: learn
 ## Hands-on Checkpoints
 
 - [x] Early usable behavior explored — after slice 2. The learner reviewed the real `flip/` results and gave feedback that changed the plan (one row per stretch; remember prepared clips) but did not run the terminal search themselves and chose to move on. Their first hands-on use of real footage is slice 3's learner check in the window.
-- [ ] Final kick-the-tires exploration and feedback completed
+- [x] Final kick-the-tires exploration and feedback completed — learner explored the full app; feedback: preview kept playing during a new search (fixed), cutoff question (kept at 60% on evidence).
 
 ## Final Review
 
 - [x] Starting a new search stops and clears the preview — the clip kept playing and stuttered during the next search. Fixed in `main.js` (also cleared the remembered clip so re-clicking reloads it); verified in the browser; learner retried and confirmed.
 - [x] Cutoff: learner asked about lowering to 50% after "speeding buggy" seemed to miss one. Checked: all three buggy clips appear above 60% (93–95%, and `C768` at 88%); only partial passes inside `C768` score 47–56%, and 50% would readmit known false hits (snowboarder 56%, Machu Picchu look-alikes 50–54%). Learner chose to keep 60%; no change.
-- [ ] Final review complete — feedback resolved and learner confirms ready to ship
+- [x] Final review complete — feedback resolved and learner confirms ready to ship
 
 ## Code Tour and App Map
 
-- [ ] Learning activity complete — guided route, focused alternative, prior practice connected, or brief recap
+- [x] Learning activity complete — prior practice connected: the black-screen video diagnosis in slice 4
 - [ ] Optional edit and transfer reflection addressed — offered/declined/already covered/not applicable as appropriate
-- [ ] `devpost/app-map.html` generated from finished code, checked, and shown, including a project-grounded practice to reuse
+- [x] `devpost/app-map.html` generated from finished code, checked, and shown, including a project-grounded practice to reuse
 
-Activity and evidence: 
-Route and stops: 
-Edit outcome: 
+Activity and evidence: Focused alternative, already done during the build. The video preview passed browser checks but showed a black picture with audio in the real window; temporary diagnostics (learner clicked one result) showed the clip served as `text/html`; Tauri's `mime_type.rs` confirmed a lowercase-only `mp4` match; fixed with `clip_protocol.rs` and its tests; a second diagnostic run showed playback from 2.00 s and 64.00 s. Connected to the practice "instrument the real environment instead of guessing" (also the squashed-header bug).
+Route and stops: Reference route only (not toured): `src/main.js` `runSearch` → `src-tauri/src/lib.rs` `async fn search(` → `src-tauri/src/search.rs` `fn group(`.
+Edit outcome: Not applicable (focused alternative; learner-requested changes during final review were already made and committed).
 Reflection: 
-Activity mode: 
+Activity mode: Prior practice connected, plus the app map.
 
 ## Revisions
 
