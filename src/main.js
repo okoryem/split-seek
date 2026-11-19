@@ -9,12 +9,16 @@ const { getCurrentWebview } = window.__TAURI__.webview;
 const $ = (id) => document.getElementById(id);
 const STATES = ["picker", "preparing", "search"];
 let current = "picker";
+let offline = false; // the open folder's drive isn't connected: search works, preview doesn't
 
 function show(state) {
   current = state;
   for (const s of STATES) $(s).hidden = s !== state;
   $("change-folder").hidden = state !== "search";
-  if (state === "picker") $("folder-name").textContent = "";
+  if (state === "picker") {
+    $("folder-name").textContent = "";
+    renderRecent();
+  }
   if (state === "search") $("search-input").focus();
 }
 
@@ -27,7 +31,9 @@ function plural(n, word) {
   return `${n.toLocaleString()} ${word}${n === 1 ? "" : "s"}`;
 }
 
-async function prepare(path) {
+/** Prepares a folder: "prepare_folder" for a newly chosen one, "open_saved_folder"
+ *  for one from Recent folders (which works even when its drive is unplugged). */
+async function prepare(path, command = "prepare_folder") {
   if (current === "preparing") return;
   showPickerError("");
   $("progress-fill").style.width = "0";
@@ -36,10 +42,12 @@ async function prepare(path) {
   show("preparing");
 
   try {
-    const s = await invoke("prepare_folder", { path });
+    const s = await invoke(command, { path });
+    offline = s.offline;
     $("folder-name").textContent = s.folderName;
     const parts = [plural(s.clipCount, "clip"), plural(s.frameCount, "frame")];
-    if (s.rememberedCount > 0) parts.push(`${s.rememberedCount.toLocaleString()} remembered`);
+    if (s.offline) parts.push("drive not connected: search works, connect it to preview");
+    else if (s.rememberedCount > 0) parts.push(`${s.rememberedCount.toLocaleString()} remembered`);
     if (s.skippedCount > 0) parts.push(`${s.skippedCount} couldn't be read`);
     $("prepared-line").textContent = parts.join(" · ");
     $("results").replaceChildren();
@@ -51,6 +59,49 @@ async function prepare(path) {
     show("picker");
     showPickerError(String(message));
   }
+}
+
+// ── Recent folders ──────────────────────────────────────────────────────
+
+function formatDate(secs) {
+  return new Date(secs * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+async function renderRecent() {
+  let folders = [];
+  try {
+    folders = await invoke("list_saved_folders");
+  } catch {
+    // No list is fine; the picker still works.
+  }
+  const list = $("recent-list");
+  list.replaceChildren();
+  for (const f of folders) {
+    const wrap = el("div", "recent-wrap");
+    const open = el("button", "recent-row");
+    open.title = f.folder;
+    open.addEventListener("click", () => prepare(f.folder, "open_saved_folder"));
+    const info = el("div", "recent-info");
+    info.append(el("div", "recent-name", f.folderName));
+    info.append(el("div", "recent-path muted", f.folder));
+    const meta = el("div", "recent-meta muted");
+    meta.textContent = `${plural(f.clipCount, "clip")} · ${formatDate(f.preparedAt)}`;
+    const drive = el("div", f.connected ? "recent-drive" : "recent-drive offline");
+    drive.textContent = f.connected ? "Connected" : "Drive not connected";
+    meta.append(drive);
+    open.append(info, meta);
+
+    const remove = el("button", "recent-remove", "×");
+    remove.title = "Remove from Recent folders (keeps its frames)";
+    remove.setAttribute("aria-label", `Remove ${f.folderName} from Recent folders`);
+    remove.addEventListener("click", async () => {
+      await invoke("remove_saved_folder", { path: f.folder }).catch(() => {});
+      renderRecent();
+    });
+    wrap.append(open, remove);
+    list.append(wrap);
+  }
+  $("recent").hidden = folders.length === 0;
 }
 
 // ── Search ──────────────────────────────────────────────────────────────
@@ -264,7 +315,9 @@ window.addEventListener("DOMContentLoaded", async () => {
     if (!$("player").getAttribute("src")) return;
     $("player").hidden = true;
     $("preview-empty").hidden = false;
-    $("preview-empty").textContent = "This clip can't be previewed here. Use ⋯ → Show in Finder.";
+    $("preview-empty").textContent = offline
+      ? "Connect the drive this clip is on to preview it."
+      : "This clip can't be previewed here. Use ⋯ → Show in Finder.";
   });
   document.addEventListener("click", (e) => {
     if (openMenu && !openMenu.contains(e.target)) closeMenu();
@@ -293,4 +346,6 @@ window.addEventListener("DOMContentLoaded", async () => {
     else zone.classList.remove("over");
     if (payload.type === "drop" && payload.paths.length > 0) prepare(payload.paths[0]);
   });
+
+  renderRecent();
 });

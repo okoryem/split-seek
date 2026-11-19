@@ -141,6 +141,112 @@ body {
   margin: 0;
 }
 
+/* Recent folders, under the drop zone */
+.recent {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  max-height: 45%;
+  min-height: 0;
+  margin-top: 12px;
+}
+
+.recent-title {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.recent-list {
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+}
+
+.recent-wrap {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--border);
+}
+
+.recent-wrap:last-child {
+  border-bottom: none;
+}
+
+.recent-row {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  background: none;
+  border: none;
+}
+
+.recent-row:hover {
+  background: #303030;
+}
+
+.recent-row:focus-visible,
+.recent-remove:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.recent-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.recent-name,
+.recent-path {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.recent-path {
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.recent-meta {
+  flex: none;
+  text-align: right;
+  font-size: 11px;
+}
+
+.recent-drive {
+  margin-top: 2px;
+}
+
+.recent-drive.offline {
+  color: var(--accent);
+}
+
+.recent-remove {
+  flex: none;
+  width: 32px;
+  font: inherit;
+  font-size: 15px;
+  color: var(--muted);
+  background: none;
+  border: none;
+}
+
+.recent-remove:hover {
+  color: var(--text);
+  background: #303030;
+}
+
 .error {
   color: var(--error);
   margin-top: 10px !important;

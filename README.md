@@ -16,12 +16,12 @@ Matching is done by [Jev](https://docs.typesafe.ai) from TypeSafe, a decision mo
 4. **Preview.** Click a row to play the original clip from its best moment.
 5. **Get the clip.** Use **⋯ → Show in Finder**, then drag it into your editor.
 
-Prepared frames are remembered, so reopening a folder is nearly instant and only new or changed clips are prepared again.
+Prepared frames are remembered, so reopening a folder is nearly instant and only new or changed clips are prepared again. Folders you've prepared appear under **Recent folders**. You can open one and search it even with its drive unplugged; preview and Show in Finder need the drive connected again.
 
 ## Your footage is safe
 
 - Original clips are **only ever read**. Nothing is written, moved, or renamed in your folders.
-- Sampled frames are small JPEGs stored in `~/Library/Caches/com.splitseek.app/frames/` (about 22 MB for 57 clips). **Forget prepared frames** at the bottom of the window deletes them all.
+- Sampled frames are small JPEGs stored in `~/Library/Caches/com.splitseek.app/frames/` (about 22 MB for 57 clips). A small record of each prepared folder (which cached frames belong to which clip) is kept in `~/Library/Caches/com.splitseek.app/folders/`. **Forget prepared frames** at the bottom of the window deletes the frames and the Recent folders list.
 - Frames are sent to Jev for scoring, so a search sends low-resolution stills of your footage to TypeSafe's API.
 - The video preview can only read clips in the folder you prepared.
 
@@ -77,6 +77,7 @@ click a row       ──clip://───▶  clip_protocol.rs (video, in pieces)
 
 - **`scan.rs`** finds video files, skipping hidden files, macOS `._` sidecars, and DJI `.LRF` proxies.
 - **`frames.rs`** runs one ffmpeg command per clip, 4 clips at a time. It decodes only keyframes on the Mac's video hardware (about 30× faster than a full decode on 4K HEVC) and saves a flat LOG frame for the preview plus a contrast-boosted copy for Jev. Each clip's frames are cached under a key built from its path, size, and modified time.
+- **`library.rs`** saves a record of each prepared folder, so Recent folders can be searched without their drive.
 - **`jev.rs`** sends a frame to Jev and retries when it's rate-limited.
 - **`search.rs`** scores every frame, joins back-to-back matches into stretches, sorts them, and splits them at the 60% cutoff.
 - **`clip_protocol.rs`** serves video to the preview player. Tauri's built-in file access labelled uppercase `.MP4` files as `text/html`, which played audio over a black picture.

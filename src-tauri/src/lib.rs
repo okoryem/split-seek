@@ -1,6 +1,7 @@
 pub mod clip_protocol;
 pub mod frames;
 pub mod jev;
+pub mod library;
 pub mod scan;
 pub mod search;
 
@@ -43,6 +44,28 @@ struct PrepareSummary {
     remembered_count: usize,
     frame_count: usize,
     skipped_count: usize,
+    /// True when the folder was opened from its saved record because it isn't
+    /// reachable (e.g. its drive is unplugged): search works, preview doesn't.
+    offline: bool,
+}
+
+fn folder_name(folder: &std::path::Path) -> String {
+    folder
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| folder.display().to_string())
+}
+
+fn summarize(prepared: &Prepared, offline: bool) -> PrepareSummary {
+    PrepareSummary {
+        folder: prepared.folder.display().to_string(),
+        folder_name: folder_name(&prepared.folder),
+        clip_count: prepared.clip_count,
+        remembered_count: prepared.cached_count,
+        frame_count: prepared.frames.len(),
+        skipped_count: prepared.skipped.len(),
+        offline,
+    }
 }
 
 /// Prepares every clip in `path` (from the cache where possible), sending a
@@ -83,19 +106,74 @@ async fn prepare_folder(
         eprintln!("[prepare]   skipped (ffmpeg couldn't read it): {}", s.display());
     }
 
-    let summary = PrepareSummary {
-        folder: path,
-        folder_name: folder
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_else(|| folder.display().to_string()),
-        clip_count: prepared.clip_count,
-        remembered_count: prepared.cached_count,
-        frame_count: prepared.frames.len(),
-        skipped_count: prepared.skipped.len(),
-    };
+    if let Err(e) = library::save(&library::default_root(), &prepared) {
+        eprintln!("[library] couldn't save {}: {e}", folder.display());
+    }
+    let summary = summarize(&prepared, false);
     *slot = Some(prepared);
     Ok(summary)
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SavedFolderRow {
+    folder: String,
+    folder_name: String,
+    clip_count: usize,
+    frame_count: usize,
+    /// Seconds since 1970.
+    prepared_at: u64,
+    /// Whether the folder can be reached right now (its drive is plugged in).
+    connected: bool,
+}
+
+/// Folders prepared before, most recent first, for the picker's "Recent folders".
+#[tauri::command]
+async fn list_saved_folders() -> Vec<SavedFolderRow> {
+    library::list(&library::default_root())
+        .into_iter()
+        .map(|f| SavedFolderRow {
+            folder: f.folder.display().to_string(),
+            folder_name: folder_name(&f.folder),
+            clip_count: f.clip_count,
+            frame_count: f.frame_count,
+            prepared_at: f.prepared_at,
+            connected: f.folder.is_dir(),
+        })
+        .collect()
+}
+
+/// Opens a saved folder. If it can be reached it's prepared as usual (so new or
+/// changed clips are picked up); otherwise it's rebuilt from its saved record.
+#[tauri::command]
+async fn open_saved_folder(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<PrepareSummary, String> {
+    let folder = PathBuf::from(&path);
+    if folder.is_dir() {
+        return prepare_folder(app, state, path).await;
+    }
+    let mut slot = state.prepared.lock().await;
+    *slot = None;
+    let prepared = library::load(&library::default_root(), &frames::default_cache_root(), &folder)
+        .ok_or("This folder's frames are gone. Connect its drive and choose it again.")?;
+    eprintln!(
+        "[library] opened {} offline: {} clips → {} frames",
+        folder.display(),
+        prepared.cached_count,
+        prepared.frames.len()
+    );
+    let summary = summarize(&prepared, true);
+    *slot = Some(prepared);
+    Ok(summary)
+}
+
+/// Removes a folder from "Recent folders". Its cached frames are kept.
+#[tauri::command]
+async fn remove_saved_folder(path: String) -> Result<(), String> {
+    library::remove(&library::default_root(), &PathBuf::from(path)).map_err(|e| e.to_string())
 }
 
 #[derive(Serialize)]
@@ -197,6 +275,9 @@ async fn reveal_in_finder(state: State<'_, AppState>, path: String) -> Result<()
     if !known {
         return Err("That clip isn't in the prepared folder.".into());
     }
+    if !clip.exists() {
+        return Err("Connect the drive this clip is on to show it in Finder.".into());
+    }
     let status = std::process::Command::new("open")
         .arg("-R")
         .arg(&clip)
@@ -208,11 +289,13 @@ async fn reveal_in_finder(state: State<'_, AppState>, path: String) -> Result<()
     Ok(())
 }
 
-/// Deletes every remembered frame. The current folder must be prepared again afterwards.
+/// Deletes every remembered frame and the saved-folder list. The current folder must
+/// be prepared again afterwards.
 #[tauri::command]
 async fn forget_prepared_frames(state: State<'_, AppState>) -> Result<(), String> {
     *state.prepared.lock().await = None;
     frames::forget_all(&frames::default_cache_root()).map_err(|e| e.to_string())?;
+    library::forget_all(&library::default_root()).map_err(|e| e.to_string())?;
     eprintln!("[cache] forgot all prepared frames");
     Ok(())
 }
@@ -249,6 +332,9 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             prepare_folder,
+            list_saved_folders,
+            open_saved_folder,
+            remove_saved_folder,
             search,
             reveal_in_finder,
             forget_prepared_frames

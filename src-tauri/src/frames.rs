@@ -40,6 +40,9 @@ pub struct Prepared {
     pub cached_count: usize,
     /// Clips ffmpeg couldn't read.
     pub skipped: Vec<PathBuf>,
+    /// Each prepared clip and the name of its folder in the frame cache, so the
+    /// folder can be saved and searched later without its drive (see library.rs).
+    pub clip_dirs: Vec<(PathBuf, String)>,
 }
 
 #[derive(Debug)]
@@ -92,6 +95,7 @@ pub async fn prepare(
     let total = clips.len();
     let mut frames = Vec::new();
     let mut skipped = Vec::new();
+    let mut clip_dirs = Vec::new();
     let mut cached_count = 0;
     let mut done = 0;
 
@@ -109,8 +113,9 @@ pub async fn prepare(
     while let Some((clip, result)) = jobs.next().await {
         done += 1;
         match result {
-            Ok((mut clip_frames, from_cache)) if !clip_frames.is_empty() => {
+            Ok((mut clip_frames, dir, from_cache)) if !clip_frames.is_empty() => {
                 frames.append(&mut clip_frames);
+                clip_dirs.push((clip.clone(), dir));
                 cached_count += from_cache as usize;
             }
             _ => skipped.push(clip.clone()),
@@ -120,17 +125,20 @@ pub async fn prepare(
     drop(jobs);
 
     frames.sort_by(|a, b| a.clip_path.cmp(&b.clip_path).then(a.t_sec.cmp(&b.t_sec)));
+    clip_dirs.sort();
     Ok(Prepared {
         folder: folder.to_path_buf(),
         frames,
         clip_count: total,
         cached_count,
         skipped,
+        clip_dirs,
     })
 }
 
-/// Loads one clip's frames from the cache, or extracts them. Returns (frames, from_cache).
-async fn prepare_clip(clip: &Path, cache_root: &Path) -> Result<(Vec<Frame>, bool), String> {
+/// Loads one clip's frames from the cache, or extracts them.
+/// Returns (frames, cache folder name, from_cache).
+async fn prepare_clip(clip: &Path, cache_root: &Path) -> Result<(Vec<Frame>, String, bool), String> {
     let meta = std::fs::metadata(clip).map_err(|e| e.to_string())?;
     let mtime = meta
         .modified()
@@ -138,9 +146,10 @@ async fn prepare_clip(clip: &Path, cache_root: &Path) -> Result<(Vec<Frame>, boo
         .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
         .map(|d| d.as_secs())
         .unwrap_or(0);
-    let dir = cache_root.join(clip_key(clip, meta.len(), mtime));
+    let key = clip_key(clip, meta.len(), mtime);
+    let dir = cache_root.join(&key);
     if dir.is_dir() {
-        return Ok((list_frames(clip, &dir), true));
+        return Ok((list_frames(clip, &dir), key, true));
     }
 
     // Write into a .partial folder and rename when complete, so an interrupted
@@ -152,23 +161,28 @@ async fn prepare_clip(clip: &Path, cache_root: &Path) -> Result<(Vec<Frame>, boo
         return Err(e);
     }
     std::fs::rename(&partial, &dir).map_err(|e| e.to_string())?;
-    Ok((list_frames(clip, &dir), false))
+    Ok((list_frames(clip, &dir), key, false))
 }
 
 /// A cache folder name that changes whenever the clip's path, size, or modified time does.
 /// Readable prefix from the file name, then a 64-bit FNV-1a hash.
 fn clip_key(clip: &Path, size: u64, mtime_secs: u64) -> String {
-    let mut hash: u64 = 0xcbf29ce484222325;
-    let input = format!("{}\0{size}\0{mtime_secs}", clip.display());
-    for byte in input.as_bytes() {
-        hash ^= *byte as u64;
-        hash = hash.wrapping_mul(0x100000001b3);
-    }
+    let hash = fnv1a(&format!("{}\0{size}\0{mtime_secs}", clip.display()));
     let stem: String = clip
         .file_stem()
         .map(|s| s.to_string_lossy().chars().filter(|c| c.is_ascii_alphanumeric() || *c == '_').take(40).collect())
         .unwrap_or_default();
     format!("{stem}-{hash:016x}")
+}
+
+/// 64-bit FNV-1a hash: short, stable names for cache folders and saved-folder records.
+pub(crate) fn fnv1a(input: &str) -> u64 {
+    let mut hash: u64 = 0xcbf29ce484222325;
+    for byte in input.as_bytes() {
+        hash ^= *byte as u64;
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    hash
 }
 
 /// Pulls frames from one clip. Tries the fast keyframe-only pass first; if the clip's
@@ -221,7 +235,7 @@ async fn run_ffmpeg(clip: &Path, out: &Path, keyframes_only: bool) -> Result<(),
 }
 
 /// The frames already written to `dir`, in order, until the first missing pair.
-fn list_frames(clip: &Path, dir: &Path) -> Vec<Frame> {
+pub(crate) fn list_frames(clip: &Path, dir: &Path) -> Vec<Frame> {
     let name = clip_name(clip);
     let mut frames = Vec::new();
     for n in 1.. {
@@ -261,7 +275,7 @@ fn timestamp_of(n: u32) -> u32 {
     (n - 1) * SAMPLE_EVERY_SEC
 }
 
-fn clip_name(clip: &Path) -> String {
+pub(crate) fn clip_name(clip: &Path) -> String {
     clip.file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_default()
