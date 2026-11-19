@@ -210,8 +210,11 @@ async fn run_ffmpeg(clip: &Path, out: &Path, keyframes_only: bool) -> Result<(),
     let mut cmd = Command::new("ffmpeg");
     cmd.args(["-nostdin", "-loglevel", "fatal"]);
     if keyframes_only {
-        // Decode keyframes only: ~30× faster on 4K HEVC.
-        cmd.args(["-skip_frame", "nokey"]);
+        // Decode keyframes only: ~30× faster on 4K HEVC. `-discard nokey` also stops
+        // the reader from fetching the frames in between, and `-an` skips the audio,
+        // so far less is read from the drive: on 4K HEVC over USB, 2.5× faster with
+        // byte-identical frames. Preparing from a slow drive is limited by reading.
+        cmd.args(["-discard:v", "nokey", "-an", "-skip_frame", "nokey"]);
     }
     let status = cmd
         // Decode on the Mac's video hardware.

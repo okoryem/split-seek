@@ -58,7 +58,7 @@ npm run tauri dev
 
 The first run compiles the Rust engine, which takes a few minutes. Then the SplitSeek window opens.
 
-Preparation speed depends on where your clips are. From a USB drive it is limited by the drive (about 18 minutes for 43 GB from one that reads at 40 MB/s). From the Mac's internal disk it is much faster. Either way it happens once per clip.
+Preparation speed depends on where your clips are. From a USB drive it is limited by the drive, but SplitSeek reads only the keyframes it needs, so it reads far less than the whole clip (on 4K HEVC from a drive that reads at 40 MB/s, about 2.5× faster than reading everything). From the Mac's internal disk it is much faster. Either way it happens once per clip.
 
 ## How it works
 
@@ -76,7 +76,7 @@ click a row       ──clip://───▶  clip_protocol.rs (video, in pieces)
 ```
 
 - **`scan.rs`** finds video files, skipping hidden files, macOS `._` sidecars, and DJI `.LRF` proxies.
-- **`frames.rs`** runs one ffmpeg command per clip, 4 clips at a time. It decodes only keyframes on the Mac's video hardware (about 30× faster than a full decode on 4K HEVC) and saves a flat LOG frame for the preview plus a contrast-boosted copy for Jev. Each clip's frames are cached under a key built from its path, size, and modified time.
+- **`frames.rs`** runs one ffmpeg command per clip, 4 clips at a time. It reads and decodes only keyframes, on the Mac's video hardware (about 30× faster than a full decode on 4K HEVC, and 2.5× less reading from a slow drive), and saves a flat LOG frame for the preview plus a contrast-boosted copy for Jev. Each clip's frames are cached under a key built from its path, size, and modified time.
 - **`library.rs`** saves a record of each prepared folder, so Recent folders can be searched without their drive.
 - **`jev.rs`** sends a frame to Jev and retries when it's rate-limited.
 - **`search.rs`** scores every frame, joins back-to-back matches into stretches, sorts them, and splits them at the 60% cutoff.
