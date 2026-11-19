@@ -48,6 +48,9 @@ pub struct Prepared {
 #[derive(Debug)]
 pub enum PrepareError {
     NoVideos,
+    /// The folder vanished partway through, e.g. its drive was unplugged.
+    /// `finished` clips were prepared before that and are remembered.
+    FolderGone { finished: usize },
     Io(String),
 }
 
@@ -55,6 +58,14 @@ impl std::fmt::Display for PrepareError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             PrepareError::NoVideos => write!(f, "There are no videos in this folder."),
+            PrepareError::FolderGone { finished } => write!(
+                f,
+                "The folder disappeared while preparing. Is the drive still connected? \
+                 {finished} clip{} finished and {} remembered: reconnect the drive and \
+                 choose the folder again to carry on.",
+                if *finished == 1 { "" } else { "s" },
+                if *finished == 1 { "is" } else { "are" },
+            ),
             PrepareError::Io(m) => write!(f, "{m}"),
         }
     }
@@ -118,7 +129,18 @@ pub async fn prepare(
                 clip_dirs.push((clip.clone(), dir));
                 cached_count += from_cache as usize;
             }
-            _ => skipped.push(clip.clone()),
+            _ => {
+                // A drive that disconnects makes every remaining clip fail. Stop and
+                // say so, rather than listing hundreds of "couldn't be read" clips.
+                if !folder.is_dir() {
+                    let finished = done - 1 - skipped.len();
+                    // Stops the clips still in progress, then clears their half-written frames.
+                    drop(jobs);
+                    remove_partials(cache_root);
+                    return Err(PrepareError::FolderGone { finished });
+                }
+                skipped.push(clip.clone());
+            }
         }
         on_progress(Progress { done, total, clip: &clip_name(&clip) });
     }
@@ -160,8 +182,23 @@ async fn prepare_clip(clip: &Path, cache_root: &Path) -> Result<(Vec<Frame>, Str
         let _ = std::fs::remove_dir_all(&partial);
         return Err(e);
     }
+    // If the drive disconnects mid-clip, ffmpeg can treat it as the end of the
+    // video and exit cleanly with only part of the frames. Never cache that.
+    if std::fs::metadata(clip).is_err() {
+        let _ = std::fs::remove_dir_all(&partial);
+        return Err(format!("{} disappeared while being read", clip.display()));
+    }
     std::fs::rename(&partial, &dir).map_err(|e| e.to_string())?;
     Ok((list_frames(clip, &dir), key, false))
+}
+
+/// Removes half-written `.partial` clip folders left by a preparation that was stopped.
+fn remove_partials(cache_root: &Path) {
+    for entry in std::fs::read_dir(cache_root).into_iter().flatten().flatten() {
+        if entry.path().extension().is_some_and(|x| x == "partial") {
+            let _ = std::fs::remove_dir_all(entry.path());
+        }
+    }
 }
 
 /// A cache folder name that changes whenever the clip's path, size, or modified time does.
@@ -208,6 +245,8 @@ async fn run_ffmpeg(clip: &Path, out: &Path, keyframes_only: bool) -> Result<(),
         "[0:v]fps=1/{SAMPLE_EVERY_SEC},{SCALE},split=2[log][b];[b]{BOOST}[boost]"
     );
     let mut cmd = Command::new("ffmpeg");
+    // Stopping preparation (e.g. the folder disappeared) also stops ffmpeg.
+    cmd.kill_on_drop(true);
     cmd.args(["-nostdin", "-loglevel", "fatal"]);
     if keyframes_only {
         // Decode keyframes only: ~30× faster on 4K HEVC. `-discard nokey` also stops
